@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor
@@ -9,6 +10,7 @@ final class DictationController {
     private let postProcessor: PostProcessor
     private let metricsLogger: LocalMetricsLogger
     private let overlayController: ListeningOverlayController
+    private let permissionService: PermissionService
     private let hotkeyProvider: () -> HotkeyShortcut
 
     private var captureTask: Task<Void, Never>?
@@ -26,6 +28,7 @@ final class DictationController {
         postProcessor: PostProcessor,
         metricsLogger: LocalMetricsLogger,
         overlayController: ListeningOverlayController,
+        permissionService: PermissionService,
         hotkeyProvider: @escaping () -> HotkeyShortcut
     ) {
         self.engine = engine
@@ -35,11 +38,29 @@ final class DictationController {
         self.postProcessor = postProcessor
         self.metricsLogger = metricsLogger
         self.overlayController = overlayController
+        self.permissionService = permissionService
         self.hotkeyProvider = hotkeyProvider
     }
 
     func setEnabled(_ enabled: Bool) async {
         if enabled {
+            NSApp.activate(ignoringOtherApps: true)
+            let status = await permissionService.requestRequiredPermissions()
+            guard status.microphoneGranted, status.speechGranted, status.accessibilityGranted else {
+                metricsLogger.log(event: "permissions_denied", metadata: [
+                    "microphone": status.microphoneGranted ? "granted" : "denied",
+                    "speech": status.speechGranted ? "granted" : "denied",
+                    "accessibility": status.accessibilityGranted ? "granted" : "denied",
+                ])
+                showPermissionGuidance(
+                    microphoneGranted: status.microphoneGranted,
+                    speechGranted: status.speechGranted,
+                    accessibilityGranted: status.accessibilityGranted
+                )
+                isEnabled = false
+                return
+            }
+
             hotkeyService.startListening(shortcut: hotkeyProvider(), onPress: { [weak self] in
                 self?.startCapture()
             }, onRelease: { [weak self] in
@@ -57,7 +78,49 @@ final class DictationController {
 
     func prewarmEngine() {
         Task { @MainActor in
+            let status = permissionService.currentStatus()
+            guard status.microphoneGranted, status.speechGranted, status.accessibilityGranted else { return }
             _ = await prepareIfNeeded()
+        }
+    }
+
+    private func showPermissionGuidance(
+        microphoneGranted: Bool,
+        speechGranted: Bool,
+        accessibilityGranted: Bool
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Permissions Required"
+        if !microphoneGranted, !speechGranted, !accessibilityGranted {
+            alert.informativeText = "Enable Microphone, Speech Recognition, and Accessibility for TensorLabsVoice in System Settings > Privacy & Security."
+        } else if !microphoneGranted, !speechGranted {
+            alert.informativeText = "Enable Microphone and Speech Recognition for TensorLabsVoice in System Settings > Privacy & Security."
+        } else if !microphoneGranted, !accessibilityGranted {
+            alert.informativeText = "Enable Microphone and Accessibility for TensorLabsVoice in System Settings > Privacy & Security."
+        } else if !speechGranted, !accessibilityGranted {
+            alert.informativeText = "Enable Speech Recognition and Accessibility for TensorLabsVoice in System Settings > Privacy & Security."
+        } else if !microphoneGranted {
+            alert.informativeText = "Enable Microphone for TensorLabsVoice in System Settings > Privacy & Security > Microphone."
+        } else if !accessibilityGranted {
+            alert.informativeText = "Enable Accessibility for TensorLabsVoice in System Settings > Privacy & Security > Accessibility."
+        } else {
+            alert.informativeText = "Enable Speech Recognition for TensorLabsVoice in System Settings > Privacy & Security > Speech Recognition."
+        }
+        alert.addButton(withTitle: "Open Privacy Settings")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let targetPane: String
+            if !accessibilityGranted {
+                targetPane = "Privacy_Accessibility"
+            } else if !microphoneGranted {
+                targetPane = "Privacy_Microphone"
+            } else {
+                targetPane = "Privacy_SpeechRecognition"
+            }
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(targetPane)") {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 

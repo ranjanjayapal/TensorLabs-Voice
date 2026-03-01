@@ -27,8 +27,12 @@ final class GlobalHotkeyService {
             GetApplicationEventTarget(),
             { _, eventRef, userData in
                 guard let eventRef, let userData else { return OSStatus(eventNotHandledErr) }
-                let service = Unmanaged<GlobalHotkeyService>.fromOpaque(userData).takeUnretainedValue()
-                service.handleHotkeyEvent(eventRef)
+                let kind = GetEventKind(eventRef)
+                let serviceRef = userData
+                DispatchQueue.main.async {
+                    let service = Unmanaged<GlobalHotkeyService>.fromOpaque(serviceRef).takeUnretainedValue()
+                    service.handleHotkeyEventKind(kind)
+                }
                 return noErr
             },
             2,
@@ -67,8 +71,7 @@ final class GlobalHotkeyService {
         onRelease = nil
     }
 
-    private func handleHotkeyEvent(_ eventRef: EventRef) {
-        let kind = GetEventKind(eventRef)
+    private func handleHotkeyEventKind(_ kind: UInt32) {
         if kind == UInt32(kEventHotKeyPressed) {
             onPress?()
         } else if kind == UInt32(kEventHotKeyReleased) {

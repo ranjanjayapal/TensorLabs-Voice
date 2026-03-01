@@ -1,0 +1,507 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 63;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04FEB473081D634D89974E7D /* ASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78114F4EFC8068EC0D508FD0 /* ASREngine.swift */; };
+		087BB7ECA0FC075526B2B67E /* GlobalHotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37A4D4C697967808CB1D0ED /* GlobalHotkeyService.swift */; };
+		0A2D04BA579112D939CC4491 /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105DED966AB98898AF52CC8C /* TextInsertionService.swift */; };
+		2423B18F6470B87FC88CA0B1 /* PermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5C7E607EB302643CB1A010 /* PermissionService.swift */; };
+		3100402F3F757C9B2B104AC1 /* PostProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D3184835D1623D9491E4B7 /* PostProcessor.swift */; };
+		3FDBF502BD7564993277337D /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304C2D6FD7D2DD9F89FB2572 /* AudioCaptureService.swift */; };
+		40E7BB46D6E86A4D553D61E7 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1F7C46F53B3567E062A51773 /* WhisperKit */; };
+		4FEAE1DC894CC6ECCDB741CF /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EBD1F9092A63962C5E5C4F7 /* MenuBarController.swift */; };
+		540BDCC4FBA71DE49D9ADFD1 /* HotkeyShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 837FEEC8C045F9ECC5BED23D /* HotkeyShortcut.swift */; };
+		77CDFF328A3251FA38084C90 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6E73F160313042F388C194 /* SettingsStore.swift */; };
+		7A8E1B924F74C2E572EE8A95 /* WhisperKitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E2D189BE0598B3FE0F0297 /* WhisperKitEngine.swift */; };
+		A2033AA29BFB8CAFA9880359 /* ListeningOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0BF10188EE3F526AEBC49DE /* ListeningOverlayController.swift */; };
+		AD8327FE684E539F5EC81D8E /* TensorLabsVoiceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D4490612A334FE18B012B8 /* TensorLabsVoiceApp.swift */; };
+		B9D80CBD768329ED27174B97 /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2D1D5D8060BA07D9C3C802 /* ModelManager.swift */; };
+		B9F14AF62C264778F082B9B7 /* FallbackASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D14709CB62033528A4EF8BE /* FallbackASREngine.swift */; };
+		BB100A7F20EEFB84E31DCC2B /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD04356FFABA95CFD403723E /* DictationController.swift */; };
+		BFC56903810C3BFF518A1F11 /* AppleSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFCE7DD6BEB6CEAAC36486E /* AppleSpeechEngine.swift */; };
+		F4F1C59EF5BDEDD7F6D53F39 /* LocalMetricsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0F5C7E607EB302643CB1A010 /* PermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionService.swift; sourceTree = "<group>"; };
+		105DED966AB98898AF52CC8C /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
+		1EBD1F9092A63962C5E5C4F7 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		304C2D6FD7D2DD9F89FB2572 /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureService.swift; sourceTree = "<group>"; };
+		3D14709CB62033528A4EF8BE /* FallbackASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FallbackASREngine.swift; sourceTree = "<group>"; };
+		4A2D1D5D8060BA07D9C3C802 /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
+		6D9A3CE12F53C50700F85E5B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		78114F4EFC8068EC0D508FD0 /* ASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASREngine.swift; sourceTree = "<group>"; };
+		7AFCE7DD6BEB6CEAAC36486E /* AppleSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechEngine.swift; sourceTree = "<group>"; };
+		837FEEC8C045F9ECC5BED23D /* HotkeyShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyShortcut.swift; sourceTree = "<group>"; };
+		91D4490612A334FE18B012B8 /* TensorLabsVoiceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TensorLabsVoiceApp.swift; sourceTree = "<group>"; };
+		98BECB390628746978D8F90A /* TensorLabsVoice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TensorLabsVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		99E2D189BE0598B3FE0F0297 /* WhisperKitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitEngine.swift; sourceTree = "<group>"; };
+		AD04356FFABA95CFD403723E /* DictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationController.swift; sourceTree = "<group>"; };
+		E37A4D4C697967808CB1D0ED /* GlobalHotkeyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkeyService.swift; sourceTree = "<group>"; };
+		ED6E73F160313042F388C194 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		F0BF10188EE3F526AEBC49DE /* ListeningOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningOverlayController.swift; sourceTree = "<group>"; };
+		F7D3184835D1623D9491E4B7 /* PostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostProcessor.swift; sourceTree = "<group>"; };
+		FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMetricsLogger.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F1BFB76ED0F8FD31847E0F5C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				40E7BB46D6E86A4D553D61E7 /* WhisperKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1510F85CD323FE0E399C9D42 /* ASR */ = {
+			isa = PBXGroup;
+			children = (
+				7AFCE7DD6BEB6CEAAC36486E /* AppleSpeechEngine.swift */,
+				78114F4EFC8068EC0D508FD0 /* ASREngine.swift */,
+				3D14709CB62033528A4EF8BE /* FallbackASREngine.swift */,
+				99E2D189BE0598B3FE0F0297 /* WhisperKitEngine.swift */,
+			);
+			path = ASR;
+			sourceTree = "<group>";
+		};
+		3088A7BA723AE533A97F3E6F = {
+			isa = PBXGroup;
+			children = (
+				AEB7FB64228B4C2581DB83C3 /* TensorLabsVoice */,
+				6433F59330997407A34960CD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6433F59330997407A34960CD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				98BECB390628746978D8F90A /* TensorLabsVoice.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8E5457A39304DF26D40FA2E7 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				304C2D6FD7D2DD9F89FB2572 /* AudioCaptureService.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		97E5714D372EB3A25577C4B1 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				ED6E73F160313042F388C194 /* SettingsStore.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A2DAD3506F6146E4337721CA /* TextInsertion */ = {
+			isa = PBXGroup;
+			children = (
+				105DED966AB98898AF52CC8C /* TextInsertionService.swift */,
+			);
+			path = TextInsertion;
+			sourceTree = "<group>";
+		};
+		A973A2362A99C41AA0387F55 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
+		AEB7FB64228B4C2581DB83C3 /* TensorLabsVoice */ = {
+			isa = PBXGroup;
+			children = (
+				E3C895E126FA77C211B437E9 /* App */,
+				1510F85CD323FE0E399C9D42 /* ASR */,
+				8E5457A39304DF26D40FA2E7 /* Audio */,
+				A973A2362A99C41AA0387F55 /* Diagnostics */,
+				BAEE0D00F70F8FA0ADE0063E /* Hotkey */,
+				D4C8409EEB7250F925586780 /* Model */,
+				97E5714D372EB3A25577C4B1 /* Settings */,
+				F60C20908F6B960D4A8DD704 /* Text */,
+				A2DAD3506F6146E4337721CA /* TextInsertion */,
+				6D9A3CE12F53C50700F85E5B /* Assets.xcassets */,
+			);
+			path = TensorLabsVoice;
+			sourceTree = "<group>";
+		};
+		BAEE0D00F70F8FA0ADE0063E /* Hotkey */ = {
+			isa = PBXGroup;
+			children = (
+				E37A4D4C697967808CB1D0ED /* GlobalHotkeyService.swift */,
+				837FEEC8C045F9ECC5BED23D /* HotkeyShortcut.swift */,
+			);
+			path = Hotkey;
+			sourceTree = "<group>";
+		};
+		D4C8409EEB7250F925586780 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				4A2D1D5D8060BA07D9C3C802 /* ModelManager.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		E3C895E126FA77C211B437E9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AD04356FFABA95CFD403723E /* DictationController.swift */,
+				F0BF10188EE3F526AEBC49DE /* ListeningOverlayController.swift */,
+				1EBD1F9092A63962C5E5C4F7 /* MenuBarController.swift */,
+				0F5C7E607EB302643CB1A010 /* PermissionService.swift */,
+				91D4490612A334FE18B012B8 /* TensorLabsVoiceApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		F60C20908F6B960D4A8DD704 /* Text */ = {
+			isa = PBXGroup;
+			children = (
+				F7D3184835D1623D9491E4B7 /* PostProcessor.swift */,
+			);
+			path = Text;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AB00202A92822CD2AB9EE6EB /* TensorLabsVoice */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9FEBCED883A7BC46AAB5983B /* Build configuration list for PBXNativeTarget "TensorLabsVoice" */;
+			buildPhases = (
+				3252041E99068A3EB7C7F50E /* Sources */,
+				F1BFB76ED0F8FD31847E0F5C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TensorLabsVoice;
+			packageProductDependencies = (
+				1F7C46F53B3567E062A51773 /* WhisperKit */,
+			);
+			productName = TensorLabsVoice;
+			productReference = 98BECB390628746978D8F90A /* TensorLabsVoice.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		CF5F0BEB9274266C12117F6E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2630;
+			};
+			buildConfigurationList = 297BD17F9967351B3D683D30 /* Build configuration list for PBXProject "TensorLabsVoice" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 3088A7BA723AE533A97F3E6F;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				44515E001360DFAC0969EDA2 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AB00202A92822CD2AB9EE6EB /* TensorLabsVoice */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3252041E99068A3EB7C7F50E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04FEB473081D634D89974E7D /* ASREngine.swift in Sources */,
+				BFC56903810C3BFF518A1F11 /* AppleSpeechEngine.swift in Sources */,
+				3FDBF502BD7564993277337D /* AudioCaptureService.swift in Sources */,
+				BB100A7F20EEFB84E31DCC2B /* DictationController.swift in Sources */,
+				B9F14AF62C264778F082B9B7 /* FallbackASREngine.swift in Sources */,
+				087BB7ECA0FC075526B2B67E /* GlobalHotkeyService.swift in Sources */,
+				540BDCC4FBA71DE49D9ADFD1 /* HotkeyShortcut.swift in Sources */,
+				A2033AA29BFB8CAFA9880359 /* ListeningOverlayController.swift in Sources */,
+				F4F1C59EF5BDEDD7F6D53F39 /* LocalMetricsLogger.swift in Sources */,
+				4FEAE1DC894CC6ECCDB741CF /* MenuBarController.swift in Sources */,
+				B9D80CBD768329ED27174B97 /* ModelManager.swift in Sources */,
+				2423B18F6470B87FC88CA0B1 /* PermissionService.swift in Sources */,
+				3100402F3F757C9B2B104AC1 /* PostProcessor.swift in Sources */,
+				77CDFF328A3251FA38084C90 /* SettingsStore.swift in Sources */,
+				AD8327FE684E539F5EC81D8E /* TensorLabsVoiceApp.swift in Sources */,
+				0A2D04BA579112D939CC4491 /* TextInsertionService.swift in Sources */,
+				7A8E1B924F74C2E572EE8A95 /* WhisperKitEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		10452C20483376389FA2682E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_ENTITLEMENTS = XcodeSupport/TensorLabsVoice.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				INFOPLIST_FILE = XcodeSupport/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tensorlabs.voice.dev;
+				PRODUCT_NAME = TensorLabsVoice;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = YES;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = YES;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		2243DCED8D6600C7AD4DE6A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 8YF5B823XW;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = XcodeSupport/Info.plist;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		8323813C1C5381FA93194F30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				AUTOMATION_APPLE_EVENTS = NO;
+				CODE_SIGN_ENTITLEMENTS = XcodeSupport/TensorLabsVoice.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = YES;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
+				INFOPLIST_FILE = XcodeSupport/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tensorlabs.voice.dev;
+				PRODUCT_NAME = TensorLabsVoice;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
+				RUNTIME_EXCEPTION_ALLOW_JIT = YES;
+				RUNTIME_EXCEPTION_ALLOW_UNSIGNED_EXECUTABLE_MEMORY = YES;
+				RUNTIME_EXCEPTION_DEBUGGING_TOOL = YES;
+				RUNTIME_EXCEPTION_DISABLE_EXECUTABLE_PAGE_PROTECTION = NO;
+				RUNTIME_EXCEPTION_DISABLE_LIBRARY_VALIDATION = NO;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		DB543AFBDD664DBC8468728E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 8YF5B823XW;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = XcodeSupport/Info.plist;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		297BD17F9967351B3D683D30 /* Build configuration list for PBXProject "TensorLabsVoice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DB543AFBDD664DBC8468728E /* Debug */,
+				2243DCED8D6600C7AD4DE6A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9FEBCED883A7BC46AAB5983B /* Build configuration list for PBXNativeTarget "TensorLabsVoice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				10452C20483376389FA2682E /* Debug */,
+				8323813C1C5381FA93194F30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		44515E001360DFAC0969EDA2 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1F7C46F53B3567E062A51773 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 44515E001360DFAC0969EDA2 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = CF5F0BEB9274266C12117F6E /* Project object */;
+}

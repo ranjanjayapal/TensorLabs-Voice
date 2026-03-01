@@ -1,0 +1,42 @@
+name: TensorLabsVoice
+options:
+  minimumXcodeGenVersion: 2.38.0
+  createIntermediateGroups: true
+configs:
+  Debug: debug
+  Release: release
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit.git
+    from: 0.9.0
+targets:
+  TensorLabsVoice:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: TensorLabsVoice
+    info:
+      path: XcodeSupport/Info.plist
+    entitlements:
+      path: XcodeSupport/TensorLabsVoice.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tensorlabs.voice
+        PRODUCT_NAME: TensorLabsVoice
+        SWIFT_VERSION: 6.0
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_LSUIElement: YES
+    dependencies:
+      - package: WhisperKit
+        product: WhisperKit
+    postBuildScripts: []
+schemes:
+  TensorLabsVoice:
+    build:
+      targets:
+        TensorLabsVoice: all
+    run:
+      config: Debug
+    archive:
+      config: Release

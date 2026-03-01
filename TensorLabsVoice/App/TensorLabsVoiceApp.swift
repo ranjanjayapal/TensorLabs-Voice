@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let postProcessor = PostProcessor()
         let metricsLogger = LocalMetricsLogger()
         let overlayController = ListeningOverlayController()
+        let permissionService = PermissionService()
         let modelManager = ModelManager()
 
         let whisperEngine = WhisperKitEngine(modelManager: modelManager) { [weak self] in
@@ -40,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             postProcessor: postProcessor,
             metricsLogger: metricsLogger,
             overlayController: overlayController,
+            permissionService: permissionService,
             hotkeyProvider: { [weak self] in
                 self?.settingsStore.hotkeyShortcut ?? .default
             }

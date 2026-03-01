@@ -1,42 +1,76 @@
 import AVFoundation
+import ApplicationServices
 import Foundation
 import Speech
 
 struct PermissionStatus {
     let microphoneGranted: Bool
     let speechGranted: Bool
+    let accessibilityGranted: Bool
 }
 
 @MainActor
 final class PermissionService {
-    func requestRequiredPermissions() async -> PermissionStatus {
-        let microphoneGranted = microphoneStatusAllowsStart()
-        let speechGranted = speechStatusAllowsStart()
-        return PermissionStatus(microphoneGranted: microphoneGranted, speechGranted: speechGranted)
+    func currentStatus() -> PermissionStatus {
+        PermissionStatus(
+            microphoneGranted: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+            speechGranted: SFSpeechRecognizer.authorizationStatus() == .authorized,
+            accessibilityGranted: AXIsProcessTrusted()
+        )
     }
 
-    private func microphoneStatusAllowsStart() -> Bool {
+    func requestRequiredPermissions() async -> PermissionStatus {
+        let microphoneGranted = await requestMicrophonePermission()
+        let speechGranted = await requestSpeechPermission()
+        let accessibilityGranted = requestAccessibilityPermission()
+        return PermissionStatus(
+            microphoneGranted: microphoneGranted,
+            speechGranted: speechGranted,
+            accessibilityGranted: accessibilityGranted
+        )
+    }
+
+    private func requestMicrophonePermission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             return true
         case .notDetermined:
-            // Avoid calling requestAccess() here. In swift-run contexts this can trap
-            // without an app-bundle Info.plist usage string.
-            return true
+            return await withCheckedContinuation { continuation in
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
         default:
             return false
         }
     }
 
-    private func speechStatusAllowsStart() -> Bool {
+    private func requestSpeechPermission() async -> Bool {
         switch SFSpeechRecognizer.authorizationStatus() {
         case .authorized:
             return true
         case .notDetermined:
-            // Let primary ASR start; fallback can surface explicit speech auth errors.
-            return true
+            return await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { status in
+                    continuation.resume(returning: status == .authorized)
+                }
+            }
         default:
             return false
         }
+    }
+
+    private func requestAccessibilityPermission() -> Bool {
+        if AXIsProcessTrusted() {
+            return true
+        }
+
+        // Swift 6 concurrency workaround: avoid direct reference to the global CF constant.
+        let promptKey = "AXTrustedCheckOptionPrompt"
+        let options: CFDictionary = [
+            promptKey: true,
+        ] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        return AXIsProcessTrusted()
     }
 }

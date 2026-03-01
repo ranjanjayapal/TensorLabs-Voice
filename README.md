@@ -38,3 +38,8 @@ After launch:
 ## Notes
 - WhisperKit may download the selected model on first run, then run locally on-device afterward.
 - If WhisperKit cannot initialize, the app falls back to Apple on-device Speech so dictation still works.
+
+## Xcode App Project
+To run this as a normal macOS app (`.app`) without terminal, see:
+
+- [Xcode migration guide](docs/xcode-app-migration.md)
