@@ -16,37 +16,43 @@
       "size" : "32x32"
     },
     {
+      "filename" : "tensorLabsIcon_64.jpeg",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "32x32"
     },
     {
+      "filename" : "tensorLabsIcon_128.jpeg",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "128x128"
     },
     {
+      "filename" : "tensorLabsIcon_256 1.jpeg",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "128x128"
     },
     {
+      "filename" : "tensorLabsIcon_256.jpeg",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
     },
     {
+      "filename" : "tensorLabsIcon_512 1.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "256x256"
     },
     {
+      "filename" : "tensorLabsIcon_512.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
     },
     {
-      "filename" : "tensorLabsIcon.png",
+      "filename" : "tensorLabsIcon_1024.jpg",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"

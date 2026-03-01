@@ -19,7 +19,14 @@ final class MenuBarController: NSObject {
 
     private func configureStatusItem() {
         if let button = statusItem.button {
-            button.title = "Voice"
+            if let appIcon = NSApp.applicationIconImage, appIcon.isValid {
+                appIcon.size = NSSize(width: 18, height: 18)
+                button.image = appIcon
+                button.imagePosition = .imageOnly
+                button.title = ""
+            } else {
+                button.title = "Voice"
+            }
         }
 
         let menu = NSMenu()
