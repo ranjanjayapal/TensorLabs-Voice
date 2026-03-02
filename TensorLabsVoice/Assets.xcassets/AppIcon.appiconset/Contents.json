@@ -1,16 +1,19 @@
 {
   "images" : [
     {
+      "filename" : "tensorLabsIcon_16.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "16x16"
     },
     {
+      "filename" : "tensorLabsIcon_32.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "16x16"
     },
     {
+      "filename" : "tensorLabsIcon_32 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"

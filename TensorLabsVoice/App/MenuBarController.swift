@@ -19,13 +19,21 @@ final class MenuBarController: NSObject {
 
     private func configureStatusItem() {
         if let button = statusItem.button {
-            if let appIcon = NSApp.applicationIconImage, appIcon.isValid {
-                appIcon.size = NSSize(width: 18, height: 18)
-                button.image = appIcon
+            let statusIcon = NSImage(named: "StatusBarIcon")
+                ?? NSImage(named: "menuBarIcon")
+                ?? NSImage(named: "MenuBarIcon")
+
+            if let statusIcon {
+                statusIcon.size = NSSize(width: 18, height: 18)
+                statusIcon.isTemplate = false
+                button.image = statusIcon
+                button.imageScaling = .scaleProportionallyUpOrDown
                 button.imagePosition = .imageOnly
                 button.title = ""
             } else {
-                button.title = "Voice"
+                button.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "TensorLabs Voice")
+                button.imagePosition = .imageOnly
+                button.title = ""
             }
         }
 

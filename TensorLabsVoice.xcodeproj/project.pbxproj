@@ -10,6 +10,7 @@
 		04FEB473081D634D89974E7D /* ASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78114F4EFC8068EC0D508FD0 /* ASREngine.swift */; };
 		087BB7ECA0FC075526B2B67E /* GlobalHotkeyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E37A4D4C697967808CB1D0ED /* GlobalHotkeyService.swift */; };
 		0A2D04BA579112D939CC4491 /* TextInsertionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105DED966AB98898AF52CC8C /* TextInsertionService.swift */; };
+		122266A2B70EA9D8F60B6C41 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6D9A3CE12F53C50700F85E5B /* Assets.xcassets */; };
 		2423B18F6470B87FC88CA0B1 /* PermissionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5C7E607EB302643CB1A010 /* PermissionService.swift */; };
 		3100402F3F757C9B2B104AC1 /* PostProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D3184835D1623D9491E4B7 /* PostProcessor.swift */; };
 		3FDBF502BD7564993277337D /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304C2D6FD7D2DD9F89FB2572 /* AudioCaptureService.swift */; };
@@ -59,6 +60,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+		700248D42685526A8D924401 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				122266A2B70EA9D8F60B6C41 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXGroup section */
 		1510F85CD323FE0E399C9D42 /* ASR */ = {
@@ -183,6 +195,7 @@
 			buildPhases = (
 				3252041E99068A3EB7C7F50E /* Sources */,
 				F1BFB76ED0F8FD31847E0F5C /* Frameworks */,
+				700248D42685526A8D924401 /* Resources */,
 			);
 			buildRules = (
 			);
