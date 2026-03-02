@@ -2,10 +2,17 @@ import AppKit
 import ApplicationServices
 
 final class TextInsertionService {
-    func insertText(_ text: String) -> Bool {
+    func insertText(_ text: String, mode: InsertionMode) -> Bool {
         guard !text.isEmpty else { return true }
-        if insertUsingAccessibility(text) { return true }
-        return insertUsingPasteboard(text)
+
+        switch mode {
+        case .accessibilityFirst:
+            if insertUsingAccessibility(text) { return true }
+            return insertUsingPasteboard(text)
+        case .pasteboardFirst:
+            if insertUsingPasteboard(text) { return true }
+            return insertUsingAccessibility(text)
+        }
     }
 
     private func insertUsingAccessibility(_ text: String) -> Bool {
@@ -47,6 +54,7 @@ final class TextInsertionService {
         keyUp?.flags = .maskCommand
         guard let keyDown, let keyUp else { return false }
 
+        // Single synthetic paste event.
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
 

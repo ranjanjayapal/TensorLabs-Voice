@@ -3,6 +3,24 @@ import Foundation
 enum ModelProfile: String, CaseIterable, Codable {
     case balanced
     case fast
+    case multilingual
+}
+
+enum TranscriptionLanguage: String, CaseIterable, Codable {
+    case auto
+    case english
+    case kannada
+
+    var whisperLanguageCode: String? {
+        switch self {
+        case .auto:
+            return nil
+        case .english:
+            return "en"
+        case .kannada:
+            return "kn"
+        }
+    }
 }
 
 struct ModelDescriptor {
@@ -30,6 +48,11 @@ final class ModelManager {
             return ModelDescriptor(
                 profile: .fast,
                 whisperKitModel: "base.en"
+            )
+        case .multilingual:
+            return ModelDescriptor(
+                profile: .multilingual,
+                whisperKitModel: "small"
             )
         }
     }

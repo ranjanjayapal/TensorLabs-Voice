@@ -15,6 +15,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(insertionMode.rawValue, forKey: Keys.insertionMode) }
     }
 
+    @Published var transcriptionLanguage: TranscriptionLanguage {
+        didSet { defaults.set(transcriptionLanguage.rawValue, forKey: Keys.transcriptionLanguage) }
+    }
+
     @Published var enableDiagnostics: Bool {
         didSet { defaults.set(enableDiagnostics, forKey: Keys.enableDiagnostics) }
     }
@@ -56,6 +60,7 @@ final class SettingsStore: ObservableObject {
     private enum Keys {
         static let modelProfile = "settings.modelProfile"
         static let insertionMode = "settings.insertionMode"
+        static let transcriptionLanguage = "settings.transcriptionLanguage"
         static let enableDiagnostics = "settings.enableDiagnostics"
         static let launchAtLogin = "settings.launchAtLogin"
         static let hotkeyKey = "settings.hotkey.key"
@@ -75,6 +80,9 @@ final class SettingsStore: ObservableObject {
 
         let insertionValue = defaults.string(forKey: Keys.insertionMode)
         insertionMode = InsertionMode(rawValue: insertionValue ?? "") ?? .accessibilityFirst
+
+        let languageValue = defaults.string(forKey: Keys.transcriptionLanguage)
+        transcriptionLanguage = TranscriptionLanguage(rawValue: languageValue ?? "") ?? .auto
 
         enableDiagnostics = defaults.object(forKey: Keys.enableDiagnostics) as? Bool ?? true
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false

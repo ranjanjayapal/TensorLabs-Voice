@@ -13,11 +13,14 @@ final class DictationController {
     private let permissionService: PermissionService
     private let hotkeyProvider: () -> HotkeyShortcut
     private let postProcessorOptionsProvider: () -> PostProcessor.Options
+    private let preparationKeyProvider: () -> String
+    private let insertionModeProvider: () -> InsertionMode
 
     private var captureTask: Task<Void, Never>?
     private var prepareTask: Task<Bool, Never>?
     private var isCapturing = false
     private var isPrepared = false
+    private var lastPreparationKey: String?
 
     private(set) var isEnabled = false
 
@@ -31,7 +34,9 @@ final class DictationController {
         overlayController: ListeningOverlayController,
         permissionService: PermissionService,
         hotkeyProvider: @escaping () -> HotkeyShortcut,
-        postProcessorOptionsProvider: @escaping () -> PostProcessor.Options
+        postProcessorOptionsProvider: @escaping () -> PostProcessor.Options,
+        preparationKeyProvider: @escaping () -> String,
+        insertionModeProvider: @escaping () -> InsertionMode
     ) {
         self.engine = engine
         self.audioCaptureService = audioCaptureService
@@ -43,6 +48,8 @@ final class DictationController {
         self.permissionService = permissionService
         self.hotkeyProvider = hotkeyProvider
         self.postProcessorOptionsProvider = postProcessorOptionsProvider
+        self.preparationKeyProvider = preparationKeyProvider
+        self.insertionModeProvider = insertionModeProvider
     }
 
     func setEnabled(_ enabled: Bool) async {
@@ -128,7 +135,11 @@ final class DictationController {
     }
 
     private func prepareIfNeeded() async -> Bool {
-        guard !isPrepared else { return true }
+        let preparationKey = preparationKeyProvider()
+        if isPrepared, lastPreparationKey == preparationKey {
+            return true
+        }
+
         if let prepareTask {
             return await prepareTask.value
         }
@@ -139,6 +150,7 @@ final class DictationController {
             do {
                 try await engine.prepare()
                 isPrepared = true
+                lastPreparationKey = preparationKey
 
                 if let fallbackEngine = engine as? FallbackASREngine {
                     var metadata: [String: String] = [
@@ -200,7 +212,11 @@ final class DictationController {
                 let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
                 var insertionSucceeded = false
                 if !normalized.isEmpty {
-                    insertionSucceeded = textInsertionService.insertText(normalized)
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    insertionSucceeded = textInsertionService.insertText(
+                        normalized,
+                        mode: insertionModeProvider()
+                    )
                 }
 
                 let elapsed = Date().timeIntervalSince(startedAt)

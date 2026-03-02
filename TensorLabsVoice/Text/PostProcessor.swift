@@ -4,6 +4,7 @@ struct PostProcessor {
     struct Options {
         var customWordReplacements: [String: String] = [:]
         var enableSmartListFormatting = true
+        var applyEnglishCasingAndPunctuation = true
 
         static let `default` = Options()
     }
@@ -16,6 +17,10 @@ struct PostProcessor {
         let collapsedWhitespace = replacedWords.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         if options.enableSmartListFormatting, let numberedList = convertSpokenNumberedList(collapsedWhitespace) {
             return numberedList
+        }
+
+        if !options.applyEnglishCasingAndPunctuation {
+            return collapsedWhitespace
         }
 
         let sentence = ensureSentencePunctuation(collapsedWhitespace)

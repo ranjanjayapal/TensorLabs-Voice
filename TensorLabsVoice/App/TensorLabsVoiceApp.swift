@@ -32,9 +32,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let permissionService = PermissionService()
         let modelManager = ModelManager()
 
-        let whisperEngine = WhisperKitEngine(modelManager: modelManager) { [weak self] in
-            self?.settingsStore.modelProfile ?? .balanced
-        }
+        let whisperEngine = WhisperKitEngine(
+            modelManager: modelManager,
+            profileProvider: { [weak self] in
+                self?.settingsStore.modelProfile ?? .balanced
+            },
+            languageProvider: { [weak self] in
+                self?.settingsStore.transcriptionLanguage ?? .auto
+            }
+        )
         let appleFallback = AppleSpeechEngine()
         let asrEngine: ASREngine = FallbackASREngine(primary: whisperEngine, fallback: appleFallback)
         let dictationController = DictationController(
@@ -53,8 +59,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return .default }
                 return PostProcessor.Options(
                     customWordReplacements: self.settingsStore.customWordReplacements,
-                    enableSmartListFormatting: self.settingsStore.enableSmartListFormatting
+                    enableSmartListFormatting: self.settingsStore.enableSmartListFormatting,
+                    applyEnglishCasingAndPunctuation: self.settingsStore.transcriptionLanguage != .kannada
                 )
+            },
+            preparationKeyProvider: { [weak self] in
+                guard let self else { return "balanced:auto" }
+                return "\(self.settingsStore.modelProfile.rawValue):\(self.settingsStore.transcriptionLanguage.rawValue)"
+            },
+            insertionModeProvider: { [weak self] in
+                self?.settingsStore.insertionMode ?? .accessibilityFirst
             }
         )
 
@@ -76,12 +90,23 @@ struct SettingsView: View {
                 Picker("Model profile", selection: $settings.modelProfile) {
                     Text("Balanced (small.en)").tag(ModelProfile.balanced)
                     Text("Fast (base.en)").tag(ModelProfile.fast)
+                    Text("Multilingual (small)").tag(ModelProfile.multilingual)
                 }
 
                 Picker("Insertion mode", selection: $settings.insertionMode) {
                     Text("Accessibility first").tag(InsertionMode.accessibilityFirst)
                     Text("Pasteboard fallback").tag(InsertionMode.pasteboardFirst)
                 }
+
+                Picker("Transcription language", selection: $settings.transcriptionLanguage) {
+                    Text("Auto detect").tag(TranscriptionLanguage.auto)
+                    Text("English").tag(TranscriptionLanguage.english)
+                    Text("Kannada").tag(TranscriptionLanguage.kannada)
+                }
+
+                Text("For Kannada, use Model profile: Multilingual (small).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                 Toggle("Enable diagnostics logging", isOn: $settings.enableDiagnostics)
                 Toggle("Launch at login (future)", isOn: $settings.launchAtLogin)
