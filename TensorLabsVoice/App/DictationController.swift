@@ -12,6 +12,7 @@ final class DictationController {
     private let overlayController: ListeningOverlayController
     private let permissionService: PermissionService
     private let hotkeyProvider: () -> HotkeyShortcut
+    private let postProcessorOptionsProvider: () -> PostProcessor.Options
 
     private var captureTask: Task<Void, Never>?
     private var prepareTask: Task<Bool, Never>?
@@ -29,7 +30,8 @@ final class DictationController {
         metricsLogger: LocalMetricsLogger,
         overlayController: ListeningOverlayController,
         permissionService: PermissionService,
-        hotkeyProvider: @escaping () -> HotkeyShortcut
+        hotkeyProvider: @escaping () -> HotkeyShortcut,
+        postProcessorOptionsProvider: @escaping () -> PostProcessor.Options
     ) {
         self.engine = engine
         self.audioCaptureService = audioCaptureService
@@ -40,6 +42,7 @@ final class DictationController {
         self.overlayController = overlayController
         self.permissionService = permissionService
         self.hotkeyProvider = hotkeyProvider
+        self.postProcessorOptionsProvider = postProcessorOptionsProvider
     }
 
     func setEnabled(_ enabled: Bool) async {
@@ -194,7 +197,7 @@ final class DictationController {
                     }
                 }
 
-                let normalized = postProcessor.normalize(finalText)
+                let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
                 var insertionSucceeded = false
                 if !normalized.isEmpty {
                     insertionSucceeded = textInsertionService.insertText(normalized)

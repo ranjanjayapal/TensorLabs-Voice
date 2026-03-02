@@ -43,6 +43,14 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(hotkeyControl, forKey: Keys.hotkeyControl) }
     }
 
+    @Published var enableSmartListFormatting: Bool {
+        didSet { defaults.set(enableSmartListFormatting, forKey: Keys.enableSmartListFormatting) }
+    }
+
+    @Published var customWordReplacementsRaw: String {
+        didSet { defaults.set(customWordReplacementsRaw, forKey: Keys.customWordReplacementsRaw) }
+    }
+
     private let defaults: UserDefaults
 
     private enum Keys {
@@ -55,6 +63,8 @@ final class SettingsStore: ObservableObject {
         static let hotkeyShift = "settings.hotkey.shift"
         static let hotkeyOption = "settings.hotkey.option"
         static let hotkeyControl = "settings.hotkey.control"
+        static let enableSmartListFormatting = "settings.text.enableSmartListFormatting"
+        static let customWordReplacementsRaw = "settings.text.customWordReplacementsRaw"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -75,6 +85,8 @@ final class SettingsStore: ObservableObject {
         hotkeyShift = defaults.object(forKey: Keys.hotkeyShift) as? Bool ?? HotkeyShortcut.default.shift
         hotkeyOption = defaults.object(forKey: Keys.hotkeyOption) as? Bool ?? HotkeyShortcut.default.option
         hotkeyControl = defaults.object(forKey: Keys.hotkeyControl) as? Bool ?? HotkeyShortcut.default.control
+        enableSmartListFormatting = defaults.object(forKey: Keys.enableSmartListFormatting) as? Bool ?? true
+        customWordReplacementsRaw = defaults.string(forKey: Keys.customWordReplacementsRaw) ?? ""
     }
 
     var hotkeyShortcut: HotkeyShortcut {
@@ -85,5 +97,49 @@ final class SettingsStore: ObservableObject {
             option: hotkeyOption,
             control: hotkeyControl
         )
+    }
+
+    var customWordReplacements: [String: String] {
+        let lines = customWordReplacementsRaw.components(separatedBy: .newlines)
+        var dictionary: [String: String] = [:]
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") {
+                continue
+            }
+
+            // Alias format:
+            // Amma: one more, im not, ma
+            // maps all aliases (and Amma itself) -> Amma
+            let aliasParts = trimmed.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            if aliasParts.count == 2 {
+                let canonical = String(aliasParts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let aliasesRaw = String(aliasParts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !canonical.isEmpty else { continue }
+
+                dictionary[canonical.lowercased()] = canonical
+                let aliases = aliasesRaw
+                    .split(separator: ",")
+                    .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                    .filter { !$0.isEmpty }
+                for alias in aliases {
+                    dictionary[alias] = canonical
+                }
+                continue
+            }
+
+            // Direct replacement format:
+            // spoken=Written
+            let parts = trimmed.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+
+            let spoken = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let written = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !spoken.isEmpty, !written.isEmpty else { continue }
+            dictionary[spoken] = written
+        }
+
+        return dictionary
     }
 }

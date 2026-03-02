@@ -79,8 +79,9 @@ final class MenuBarController: NSObject {
             let hostingController = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: hostingController)
             window.title = "TensorLabs Voice Settings"
-            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.setContentSize(NSSize(width: 460, height: 320))
+            window.minSize = NSSize(width: 420, height: 280)
             window.level = .floating
             window.collectionBehavior = [.moveToActiveSpace]
             window.isReleasedWhenClosed = false
