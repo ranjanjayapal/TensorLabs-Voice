@@ -5,7 +5,9 @@ final class TextInsertionService {
     func insertText(_ text: String, mode: InsertionMode) -> Bool {
         guard !text.isEmpty else { return true }
 
-        switch mode {
+        let effectiveMode = preferredMode(for: mode)
+
+        switch effectiveMode {
         case .accessibilityFirst:
             if insertUsingAccessibility(text) { return true }
             return insertUsingPasteboard(text)
@@ -13,6 +15,19 @@ final class TextInsertionService {
             if insertUsingPasteboard(text) { return true }
             return insertUsingAccessibility(text)
         }
+    }
+
+    private func preferredMode(for configuredMode: InsertionMode) -> InsertionMode {
+        guard configuredMode == .accessibilityFirst else { return configuredMode }
+        guard let bundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+            return configuredMode
+        }
+
+        if Self.terminalBundleIdentifiers.contains(bundleIdentifier) {
+            return .pasteboardFirst
+        }
+
+        return configuredMode
     }
 
     private func insertUsingAccessibility(_ text: String) -> Bool {
@@ -54,13 +69,17 @@ final class TextInsertionService {
         keyUp?.flags = .maskCommand
         guard let keyDown, let keyUp else { return false }
 
-        // Single synthetic paste event.
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        if let processIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            keyDown.postToPid(processIdentifier)
+            keyUp.postToPid(processIdentifier)
+        } else {
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+        }
 
         // Give the focused app a moment to consume Cmd+V before restoring clipboard.
         if let previousValue {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
                 pasteboard.clearContents()
                 _ = pasteboard.setString(previousValue, forType: .string)
             }
@@ -68,4 +87,14 @@ final class TextInsertionService {
 
         return true
     }
+
+    private static let terminalBundleIdentifiers: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+        "net.kovidgoyal.kitty",
+        "dev.warp.Warp-Stable",
+        "dev.warp.Warp",
+        "io.alacritty",
+        "co.zeit.hyper",
+    ]
 }

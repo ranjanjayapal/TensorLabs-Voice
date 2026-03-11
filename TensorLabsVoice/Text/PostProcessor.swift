@@ -12,8 +12,12 @@ struct PostProcessor {
     func normalize(_ text: String, options: Options = .default) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
+        if isBlankAudioArtifact(trimmed) { return "" }
 
-        let replacedWords = applyCustomWordReplacements(trimmed, replacements: options.customWordReplacements)
+        let deartifacted = removeTranscriptionArtifacts(trimmed)
+        guard !deartifacted.isEmpty else { return "" }
+
+        let replacedWords = applyCustomWordReplacements(deartifacted, replacements: options.customWordReplacements)
         let collapsedWhitespace = replacedWords.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         if options.enableSmartListFormatting, let numberedList = convertSpokenNumberedList(collapsedWhitespace) {
             return numberedList
@@ -25,6 +29,20 @@ struct PostProcessor {
 
         let sentence = ensureSentencePunctuation(collapsedWhitespace)
         return capitalizeFirstLetter(sentence)
+    }
+
+    private func removeTranscriptionArtifacts(_ text: String) -> String {
+        var output = text
+        let artifacts = ["[BLANK_AUDIO]", "<|nospeech|>", "<|nocaptions|>"]
+        for artifact in artifacts {
+            output = output.replacingOccurrences(of: artifact, with: "", options: [.caseInsensitive])
+        }
+        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isBlankAudioArtifact(_ text: String) -> Bool {
+        let lowered = text.lowercased()
+        return lowered == "[blank_audio]" || lowered == "blank audio" || lowered == "<|nospeech|>"
     }
 
     private func applyCustomWordReplacements(_ text: String, replacements: [String: String]) -> String {

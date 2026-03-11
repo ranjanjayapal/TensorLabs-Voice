@@ -98,7 +98,6 @@ final class MenuBarController: NSObject {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 900_000_000)
             guard !dictationController.isEnabled else { return }
-            NSApp.activate(ignoringOtherApps: true)
             toggleItem.isEnabled = false
             await dictationController.setEnabled(true)
             refreshMenuState()

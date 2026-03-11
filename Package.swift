@@ -13,11 +13,16 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
+        .package(url: "https://github.com/soniqo/speech-swift", branch: "main"),
     ],
     targets: [
         .executableTarget(
             name: "TensorLabsVoice",
-            dependencies: ["WhisperKit"],
+            dependencies: [
+                "WhisperKit",
+                .product(name: "Qwen3ASR", package: "speech-swift"),
+                .product(name: "ParakeetASR", package: "speech-swift"),
+            ],
             path: "TensorLabsVoice"
         ),
     ]

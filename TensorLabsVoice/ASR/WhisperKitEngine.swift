@@ -8,28 +8,69 @@ enum WhisperKitEngineError: Error {
 @MainActor
 final class WhisperKitEngine: ASREngine {
     let id = "whisperkit"
+    var requiresSpeechRecognitionPermission: Bool { false }
     private let modelManager: ModelManager
-    private let profileProvider: () -> ModelProfile
+    private let metricsLogger: LocalMetricsLogger
+    private let modeProvider: () -> DictationMode
     private let languageProvider: () -> TranscriptionLanguage
     private var whisperKit: WhisperKit?
+    private var preparedModelName: String?
 
     init(
         modelManager: ModelManager,
-        profileProvider: @escaping () -> ModelProfile,
+        metricsLogger: LocalMetricsLogger,
+        modeProvider: @escaping () -> DictationMode,
         languageProvider: @escaping () -> TranscriptionLanguage
     ) {
         self.modelManager = modelManager
-        self.profileProvider = profileProvider
+        self.metricsLogger = metricsLogger
+        self.modeProvider = modeProvider
         self.languageProvider = languageProvider
     }
 
     func prepare() async throws {
-        let profile = profileProvider()
-        let modelName = modelManager.whisperKitModel(for: profile)
-        let downloadBase = try await modelManager.ensureModelExists(for: profile)
+        let mode = modeProvider()
+        let language = languageProvider()
+        let descriptor = modelManager.descriptor(for: mode, language: language)
+        guard let modelName = descriptor.whisperKitModel else {
+            throw WhisperKitEngineError.modelNotInitialized
+        }
+
+        if preparedModelName == modelName, whisperKit != nil {
+            metricsLogger.logStatus(
+                "\(descriptor.displayName) model already ready: \(modelName)",
+                metadata: ["engine": id, "model_name": modelName, "mode": mode.rawValue]
+            )
+            return
+        }
+
+        let downloadBase = try await modelManager.ensureModelExists(for: mode)
+        let hadLocalModel = modelManager.localModelPath(for: mode, language: language) != nil
+        if hadLocalModel {
+            metricsLogger.logStatus(
+                "Found local \(descriptor.displayName) model, loading: \(modelName)",
+                metadata: ["engine": id, "model_name": modelName, "mode": mode.rawValue]
+            )
+        } else {
+            metricsLogger.logStatus(
+                "Downloading \(descriptor.displayName) model: \(modelName)",
+                metadata: ["engine": id, "model_name": modelName, "mode": mode.rawValue]
+            )
+        }
         let modelFolder = try await WhisperKit.download(
             variant: modelName,
             downloadBase: downloadBase
+        )
+        if !hadLocalModel {
+            metricsLogger.logStatus(
+                "Finished downloading \(descriptor.displayName) model: \(modelName)",
+                metadata: ["engine": id, "model_name": modelName, "model_folder": modelFolder.path, "mode": mode.rawValue]
+            )
+        }
+
+        metricsLogger.logStatus(
+            "Loading \(descriptor.displayName) model into WhisperKit: \(modelName)",
+            metadata: ["engine": id, "model_name": modelName, "model_folder": modelFolder.path, "mode": mode.rawValue]
         )
 
         let config = WhisperKitConfig(
@@ -38,6 +79,11 @@ final class WhisperKitEngine: ASREngine {
             download: false
         )
         whisperKit = try await WhisperKit(config)
+        preparedModelName = modelName
+        metricsLogger.logStatus(
+            "\(descriptor.displayName) model ready: \(modelName)",
+            metadata: ["engine": id, "model_name": modelName, "model_folder": modelFolder.path, "mode": mode.rawValue]
+        )
     }
 
     func transcribe(audioStream: AsyncThrowingStream<[Float], Error>) -> AsyncThrowingStream<ASREvent, Error> {
@@ -62,10 +108,10 @@ final class WhisperKitEngine: ASREngine {
                         return
                     }
 
-                    let selectedProfile = profileProvider()
+                    let selectedMode = modeProvider()
                     let selectedLanguage = languageProvider()
                     let decodeOptions = decodingOptions(
-                        for: selectedProfile,
+                        for: selectedMode,
                         language: selectedLanguage
                     )
                     let results = try await whisperKit.transcribe(audioArray: samples, decodeOptions: decodeOptions)
@@ -81,10 +127,10 @@ final class WhisperKitEngine: ASREngine {
         }
     }
 
-    private func decodingOptions(for profile: ModelProfile, language: TranscriptionLanguage) -> DecodingOptions {
+    private func decodingOptions(for mode: DictationMode, language: TranscriptionLanguage) -> DecodingOptions {
         let languageCode = language.whisperLanguageCode
         let shouldDetectLanguage = language == .auto
-        let isMultilingual = profile == .multilingual || language == .kannada
+        let isMultilingual = language == .kannada || mode == .accurate || mode == .accurateFast
 
         if isMultilingual {
             // Multilingual decoding is heavier; keep worker count lower and use VAD chunking
@@ -100,7 +146,7 @@ final class WhisperKitEngine: ASREngine {
                 compressionRatioThreshold: 3.0,
                 logProbThreshold: -1.5,
                 noSpeechThreshold: 0.6,
-                concurrentWorkerCount: 4,
+                concurrentWorkerCount: mode == .accurateFast ? 6 : 4,
                 chunkingStrategy: .vad
             )
         }

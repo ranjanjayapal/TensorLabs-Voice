@@ -9,6 +9,9 @@ packages:
   WhisperKit:
     url: https://github.com/argmaxinc/WhisperKit.git
     from: 0.9.0
+  SpeechSwift:
+    url: https://github.com/soniqo/speech-swift
+    branch: main
 targets:
   TensorLabsVoice:
     type: application
@@ -27,9 +30,15 @@ targets:
         SWIFT_VERSION: 6.0
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: TensorLabs Voice needs microphone access to capture your speech.
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: TensorLabs Voice needs speech recognition access to transcribe your speech when the Apple fallback engine is used.
     dependencies:
       - package: WhisperKit
         product: WhisperKit
+      - package: SpeechSwift
+        product: Qwen3ASR
+      - package: SpeechSwift
+        product: ParakeetASR
     postBuildScripts: []
 schemes:
   TensorLabsVoice:

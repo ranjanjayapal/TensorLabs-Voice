@@ -54,9 +54,10 @@ final class DictationController {
 
     func setEnabled(_ enabled: Bool) async {
         if enabled {
-            NSApp.activate(ignoringOtherApps: true)
-            let status = await permissionService.requestRequiredPermissions()
-            guard status.microphoneGranted, status.speechGranted, status.accessibilityGranted else {
+            let status = await permissionService.requestRequiredPermissions(
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission
+            )
+            guard status.satisfiesRequirements(requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission) else {
                 metricsLogger.log(event: "permissions_denied", metadata: [
                     "microphone": status.microphoneGranted ? "granted" : "denied",
                     "speech": status.speechGranted ? "granted" : "denied",
@@ -89,7 +90,9 @@ final class DictationController {
     func prewarmEngine() {
         Task { @MainActor in
             let status = permissionService.currentStatus()
-            guard status.microphoneGranted, status.speechGranted, status.accessibilityGranted else { return }
+            guard status.satisfiesRequirements(requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission) else {
+                return
+            }
             _ = await prepareIfNeeded()
         }
     }
@@ -99,6 +102,7 @@ final class DictationController {
         speechGranted: Bool,
         accessibilityGranted: Bool
     ) {
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Permissions Required"
@@ -148,6 +152,10 @@ final class DictationController {
             defer { prepareTask = nil }
 
             do {
+                metricsLogger.logStatus(
+                    "Preparing dictation engine for \(preparationKey)",
+                    metadata: ["preparation_key": preparationKey]
+                )
                 try await engine.prepare()
                 isPrepared = true
                 lastPreparationKey = preparationKey
@@ -161,16 +169,32 @@ final class DictationController {
                         metadata["primary_prepare_error"] = primaryError
                     }
                     metricsLogger.log(event: "engine_prepared", metadata: metadata)
+                    metricsLogger.logStatus(
+                        "Dictation engine ready: \(fallbackEngine.lastEngineUsed)",
+                        metadata: metadata.merging(["preparation_key": preparationKey]) { _, new in new }
+                    )
                 } else {
                     metricsLogger.log(event: "engine_prepared", metadata: [
                         "engine_used": engine.id,
                         "fallback_used": "false",
                     ])
+                    metricsLogger.logStatus(
+                        "Dictation engine ready: \(engine.id)",
+                        metadata: [
+                            "engine_used": engine.id,
+                            "fallback_used": "false",
+                            "preparation_key": preparationKey,
+                        ]
+                    )
                 }
 
                 return true
             } catch {
                 metricsLogger.log(event: "engine_prepare_failed", metadata: ["error": error.localizedDescription])
+                metricsLogger.logStatus(
+                    "Dictation engine failed to prepare: \(error.localizedDescription)",
+                    metadata: ["preparation_key": preparationKey]
+                )
                 return false
             }
         }

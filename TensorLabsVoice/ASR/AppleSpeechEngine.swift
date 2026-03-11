@@ -11,14 +11,19 @@ enum AppleSpeechEngineError: Error {
 @MainActor
 final class AppleSpeechEngine: ASREngine {
     let id = "apple_speech"
+    var requiresSpeechRecognitionPermission: Bool { true }
 
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private let languageProvider: () -> TranscriptionLanguage
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private let inputFormat = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!
 
+    init(languageProvider: @escaping () -> TranscriptionLanguage) {
+        self.languageProvider = languageProvider
+    }
+
     func prepare() async throws {
-        guard let recognizer else {
+        guard let recognizer = recognizer() else {
             throw AppleSpeechEngineError.recognizerUnavailable
         }
 
@@ -40,7 +45,7 @@ final class AppleSpeechEngine: ASREngine {
                     request.shouldReportPartialResults = true
                     recognitionRequest = request
 
-                    guard let recognizer else {
+                    guard let recognizer = recognizer() else {
                         throw AppleSpeechEngineError.recognizerUnavailable
                     }
 
@@ -105,6 +110,11 @@ final class AppleSpeechEngine: ASREngine {
         default:
             return false
         }
+    }
+
+    private func recognizer() -> SFSpeechRecognizer? {
+        let locale = Locale(identifier: languageProvider().appleSpeechLocaleIdentifier)
+        return SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     }
 
     private func appendChunk(_ chunk: [Float], to request: SFSpeechAudioBufferRecognitionRequest) {

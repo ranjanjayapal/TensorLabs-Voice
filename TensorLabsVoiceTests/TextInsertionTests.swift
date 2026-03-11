@@ -10,7 +10,7 @@ final class TextInsertionTests: XCTestCase {
 
         let store = SettingsStore(defaults: defaults)
 
-        XCTAssertEqual(store.modelProfile, .balanced)
+        XCTAssertEqual(store.dictationMode, .balanced)
         XCTAssertEqual(store.insertionMode, .accessibilityFirst)
         XCTAssertTrue(store.enableDiagnostics)
         XCTAssertFalse(store.launchAtLogin)

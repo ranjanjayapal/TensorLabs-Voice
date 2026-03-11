@@ -23,6 +23,6 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TensorLabs Voice needs microphone access to capture your speech.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>TensorLabs Voice needs speech recognition access to transcribe your speech.</string>
+	<string>TensorLabs Voice needs speech recognition access to transcribe your speech when the Apple fallback engine is used.</string>
 </dict>
 </plist>

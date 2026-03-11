@@ -7,8 +7,8 @@ enum InsertionMode: String, Codable {
 
 @MainActor
 final class SettingsStore: ObservableObject {
-    @Published var modelProfile: ModelProfile {
-        didSet { defaults.set(modelProfile.rawValue, forKey: Keys.modelProfile) }
+    @Published var dictationMode: DictationMode {
+        didSet { defaults.set(dictationMode.rawValue, forKey: Keys.dictationMode) }
     }
 
     @Published var insertionMode: InsertionMode {
@@ -26,6 +26,8 @@ final class SettingsStore: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: Keys.launchAtLogin) }
     }
+
+    @Published var launchAtLoginStatusText: String
 
     @Published var hotkeyKey: HotkeyKey {
         didSet { defaults.set(hotkeyKey.rawValue, forKey: Keys.hotkeyKey) }
@@ -58,7 +60,8 @@ final class SettingsStore: ObservableObject {
     private let defaults: UserDefaults
 
     private enum Keys {
-        static let modelProfile = "settings.modelProfile"
+        static let dictationMode = "settings.dictationMode"
+        static let legacyModelProfile = "settings.modelProfile"
         static let insertionMode = "settings.insertionMode"
         static let transcriptionLanguage = "settings.transcriptionLanguage"
         static let enableDiagnostics = "settings.enableDiagnostics"
@@ -75,8 +78,20 @@ final class SettingsStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        let profileValue = defaults.string(forKey: Keys.modelProfile)
-        modelProfile = ModelProfile(rawValue: profileValue ?? "") ?? .balanced
+        let modeValue = defaults.string(forKey: Keys.dictationMode)
+        if let modeValue, let mode = DictationMode(rawValue: modeValue) {
+            dictationMode = mode
+        } else {
+            let legacyValue = defaults.string(forKey: Keys.legacyModelProfile)
+            switch legacyValue {
+            case "fast":
+                dictationMode = .fast
+            case "multilingual":
+                dictationMode = .balanced
+            default:
+                dictationMode = .balanced
+            }
+        }
 
         let insertionValue = defaults.string(forKey: Keys.insertionMode)
         insertionMode = InsertionMode(rawValue: insertionValue ?? "") ?? .accessibilityFirst
@@ -86,6 +101,7 @@ final class SettingsStore: ObservableObject {
 
         enableDiagnostics = defaults.object(forKey: Keys.enableDiagnostics) as? Bool ?? true
         launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
+        launchAtLoginStatusText = "Unknown"
 
         let keyValue = defaults.string(forKey: Keys.hotkeyKey)
         hotkeyKey = HotkeyKey(rawValue: keyValue ?? "") ?? HotkeyShortcut.default.key
@@ -105,6 +121,22 @@ final class SettingsStore: ObservableObject {
             option: hotkeyOption,
             control: hotkeyControl
         )
+    }
+
+    var selectedModeTechnicalDetails: String {
+        switch dictationMode {
+        case .fast:
+            if transcriptionLanguage == .kannada {
+                return "Qwen3-ASR 0.6B (Fast mode falls back for Kannada)"
+            }
+            return "Parakeet TDT (CoreML)"
+        case .balanced:
+            return "Qwen3-ASR 0.6B (MLX)"
+        case .accurateFast:
+            return "Whisper distil-large-v3 (WhisperKit)"
+        case .accurate:
+            return "Whisper large-v3 (WhisperKit)"
+        }
     }
 
     var customWordReplacements: [String: String] {

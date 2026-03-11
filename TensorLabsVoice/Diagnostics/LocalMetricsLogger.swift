@@ -29,6 +29,12 @@ final class LocalMetricsLogger: @unchecked Sendable {
         }
     }
 
+    func logStatus(_ message: String, metadata: [String: String] = [:]) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        print("[TensorLabsVoice] \(timestamp) \(message)")
+        log(event: "status", metadata: metadata.merging(["message": message]) { _, new in new })
+    }
+
     private func append(_ line: String) {
         let url = logFileURL
         if !fileManager.fileExists(atPath: url.path) {
