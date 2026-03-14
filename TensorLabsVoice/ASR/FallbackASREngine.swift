@@ -22,7 +22,7 @@ final class FallbackASREngine: ASREngine {
         do {
             try await primary.prepare()
             activeEngine = primary
-            lastEngineUsed = primary.id
+            lastEngineUsed = runtimeEngineID(for: primary)
             lastFallbackUsed = false
             lastPrimaryPrepareError = nil
             lastPrimaryRuntimeError = nil
@@ -30,41 +30,17 @@ final class FallbackASREngine: ASREngine {
             lastPrimaryPrepareError = error.localizedDescription
             try await fallback.prepare()
             activeEngine = fallback
-            lastEngineUsed = fallback.id
+            lastEngineUsed = runtimeEngineID(for: fallback)
             lastFallbackUsed = true
             lastPrimaryRuntimeError = nil
         }
     }
 
     func transcribe(audioStream: AsyncThrowingStream<[Float], Error>) -> AsyncThrowingStream<ASREvent, Error> {
-        return AsyncThrowingStream { continuation in
-            Task { @MainActor in
-                do {
-                    let bufferedChunks = try await collectChunks(from: audioStream)
-                    let selected = activeEngine ?? fallback
-                    lastEngineUsed = selected.id
-                    lastFallbackUsed = (selected.id == fallback.id)
-
-                    do {
-                        try await replay(bufferedChunks, with: selected, into: continuation)
-                    } catch {
-                        guard selected.id != fallback.id else {
-                            throw error
-                        }
-
-                        lastPrimaryRuntimeError = error.localizedDescription
-                        try await fallback.prepare()
-                        activeEngine = fallback
-                        lastEngineUsed = fallback.id
-                        lastFallbackUsed = true
-                        try await replay(bufferedChunks, with: fallback, into: continuation)
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-        }
+        let selected = activeEngine ?? fallback
+        lastEngineUsed = runtimeEngineID(for: selected)
+        lastFallbackUsed = (selected.id == fallback.id)
+        return selected.transcribe(audioStream: audioStream)
     }
 
     func stop() async {
@@ -72,30 +48,10 @@ final class FallbackASREngine: ASREngine {
         await engine.stop()
     }
 
-    private func collectChunks(from audioStream: AsyncThrowingStream<[Float], Error>) async throws -> [[Float]] {
-        var chunks: [[Float]] = []
-        for try await chunk in audioStream {
-            chunks.append(chunk)
+    private func runtimeEngineID(for engine: ASREngine) -> String {
+        if let preferred = engine as? PreferredLocalASREngine {
+            return preferred.activeEngineID
         }
-        return chunks
-    }
-
-    private func replay(
-        _ chunks: [[Float]],
-        with engine: ASREngine,
-        into continuation: AsyncThrowingStream<ASREvent, Error>.Continuation
-    ) async throws {
-        for try await event in engine.transcribe(audioStream: Self.stream(from: chunks)) {
-            continuation.yield(event)
-        }
-    }
-
-    private static func stream(from chunks: [[Float]]) -> AsyncThrowingStream<[Float], Error> {
-        AsyncThrowingStream { continuation in
-            for chunk in chunks {
-                continuation.yield(chunk)
-            }
-            continuation.finish()
-        }
+        return engine.id
     }
 }

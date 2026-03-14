@@ -100,7 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return PostProcessor.Options(
                     customWordReplacements: self.settingsStore.customWordReplacements,
                     enableSmartListFormatting: self.settingsStore.enableSmartListFormatting,
-                    applyEnglishCasingAndPunctuation: self.settingsStore.transcriptionLanguage != .kannada
+                    applyEnglishCasingAndPunctuation: self.settingsStore.transcriptionLanguage != .kannada,
+                    enableSpokenPunctuation: self.settingsStore.transcriptionLanguage != .kannada
                 )
             },
             preparationKeyProvider: { [weak self] in

@@ -15,6 +15,14 @@ final class WhisperKitEngine: ASREngine {
     private let languageProvider: () -> TranscriptionLanguage
     private var whisperKit: WhisperKit?
     private var preparedModelName: String?
+    private let streamingTranscriber = StreamingSegmentTranscriber(
+        config: StreamingSegmentationConfig(
+            minSilenceDuration: 0.48,
+            partialResultInterval: 1.2,
+            maxSegmentDuration: 14.0,
+            emitPartialResults: false
+        )
+    )
 
     init(
         modelManager: ModelManager,
@@ -87,43 +95,25 @@ final class WhisperKitEngine: ASREngine {
     }
 
     func transcribe(audioStream: AsyncThrowingStream<[Float], Error>) -> AsyncThrowingStream<ASREvent, Error> {
-        AsyncThrowingStream { continuation in
-            Task { @MainActor in
-                do {
-                    guard let whisperKit else {
-                        throw WhisperKitEngineError.modelNotInitialized
-                    }
-
-                    var samples: [Float] = []
-                    for try await chunk in audioStream {
-                        samples.append(contentsOf: chunk)
-                        if samples.count > 16_000 {
-                            continuation.yield(.partial("Listening..."))
-                        }
-                    }
-
-                    if samples.isEmpty {
-                        continuation.yield(.final(""))
-                        continuation.finish()
-                        return
-                    }
-
-                    let selectedMode = modeProvider()
-                    let selectedLanguage = languageProvider()
-                    let decodeOptions = decodingOptions(
-                        for: selectedMode,
-                        language: selectedLanguage
-                    )
-                    let results = try await whisperKit.transcribe(audioArray: samples, decodeOptions: decodeOptions)
-                    let text = results.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { !$0.isEmpty }
-                        .joined(separator: " ")
-                    continuation.yield(.final(text))
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+        guard let whisperKit else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: WhisperKitEngineError.modelNotInitialized)
             }
+        }
+
+        let whisperBox = UncheckedSendableBox(whisperKit)
+        let selectedMode = modeProvider()
+        let selectedLanguage = languageProvider()
+        let decodeOptions = decodingOptions(
+            for: selectedMode,
+            language: selectedLanguage
+        )
+
+        return streamingTranscriber.transcribe(audioStream: audioStream) { samples in
+            let results = try await whisperBox.value.transcribe(audioArray: samples, decodeOptions: decodeOptions)
+            return results.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
         }
     }
 

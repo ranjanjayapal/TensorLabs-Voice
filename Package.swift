@@ -25,5 +25,10 @@ let package = Package(
             ],
             path: "TensorLabsVoice"
         ),
+        .testTarget(
+            name: "TensorLabsVoiceTests",
+            dependencies: ["TensorLabsVoice"],
+            path: "TensorLabsVoiceTests"
+        ),
     ]
 )

@@ -5,6 +5,7 @@ struct PostProcessor {
         var customWordReplacements: [String: String] = [:]
         var enableSmartListFormatting = true
         var applyEnglishCasingAndPunctuation = true
+        var enableSpokenPunctuation = true
 
         static let `default` = Options()
     }
@@ -18,7 +19,8 @@ struct PostProcessor {
         guard !deartifacted.isEmpty else { return "" }
 
         let replacedWords = applyCustomWordReplacements(deartifacted, replacements: options.customWordReplacements)
-        let collapsedWhitespace = replacedWords.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        let punctuatedWords = options.enableSpokenPunctuation ? applySpokenPunctuation(replacedWords) : replacedWords
+        let collapsedWhitespace = normalizeWhitespace(punctuatedWords)
         if options.enableSmartListFormatting, let numberedList = convertSpokenNumberedList(collapsedWhitespace) {
             return numberedList
         }
@@ -28,7 +30,7 @@ struct PostProcessor {
         }
 
         let sentence = ensureSentencePunctuation(collapsedWhitespace)
-        return capitalizeFirstLetter(sentence)
+        return capitalizeSentences(sentence)
     }
 
     private func removeTranscriptionArtifacts(_ text: String) -> String {
@@ -132,6 +134,74 @@ struct PostProcessor {
         return listBody
     }
 
+    private func applySpokenPunctuation(_ text: String) -> String {
+        let mappings: [(String, String)] = [
+            ("new paragraph", "\n\n"),
+            ("new line", "\n"),
+            ("question mark", "?"),
+            ("exclamation mark", "!"),
+            ("full stop", "."),
+            ("semicolon", ";"),
+            ("colon", ":"),
+            ("ellipsis", "..."),
+            ("open parenthesis", "("),
+            ("close parenthesis", ")"),
+            ("open bracket", "["),
+            ("close bracket", "]"),
+            ("open quote", "\""),
+            ("close quote", "\""),
+            ("comma", ","),
+            ("period", "."),
+            ("dash", " - "),
+            ("hyphen", "-"),
+        ]
+
+        var output = text
+        for (spoken, symbol) in mappings.sorted(by: { $0.0.count > $1.0.count }) {
+            let pattern = "\\b" + NSRegularExpression.escapedPattern(for: spoken) + "\\b"
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+                let range = NSRange(output.startIndex..<output.endIndex, in: output)
+                output = regex.stringByReplacingMatches(in: output, options: [], range: range, withTemplate: symbol)
+            }
+        }
+        return cleanupPunctuationSpacing(output)
+    }
+
+    private func normalizeWhitespace(_ text: String) -> String {
+        let normalizedNewlines = text
+            .replacingOccurrences(of: #"[ \t]*\n[ \t]*"#, with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+
+        let normalizedLines = normalizedNewlines
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line in
+                line.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+            }
+
+        return normalizedLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func cleanupPunctuationSpacing(_ text: String) -> String {
+        var output = text
+        let rules: [(String, String)] = [
+            (#"\s+([,.;:!?])"#, "$1"),
+            (#"([(\[\"])\s+"#, "$1"),
+            (#"\s+([)\]\"])"#, "$1"),
+            (#"([,.;:!?])(?=[^\s)\]}\"'\n])"#, "$1 "),
+            (#"\s*-\s*"#, " - "),
+            (#"(,\s*){2,}"#, ", "),
+            (#"([!?;:])(?:\s*\1)+"#, "$1"),
+            (#"\.(?:\s*\.){3,}"#, "..."),
+        ]
+
+        for (pattern, replacement) in rules {
+            output = output.replacingOccurrences(of: pattern, with: replacement, options: .regularExpression)
+        }
+
+        return output
+    }
+
     private func markerValue(from raw: String, numberWords: [String: Int]) -> Int? {
         let lowered = raw.lowercased()
         if let value = numberWords[lowered] {
@@ -149,6 +219,28 @@ struct PostProcessor {
             return text
         }
         return text + "."
+    }
+
+    private func capitalizeSentences(_ text: String) -> String {
+        var output = ""
+        var shouldCapitalize = true
+
+        for character in text {
+            if shouldCapitalize, character.isLetter {
+                output.append(contentsOf: String(character).uppercased())
+                shouldCapitalize = false
+            } else {
+                output.append(character)
+            }
+
+            if [".", "!", "?", "\n"].contains(character) {
+                shouldCapitalize = true
+            } else if !character.isWhitespace {
+                shouldCapitalize = false
+            }
+        }
+
+        return output.replacingOccurrences(of: #"\bi\b"#, with: "I", options: .regularExpression)
     }
 
     private func capitalizeFirstLetter(_ text: String) -> String {

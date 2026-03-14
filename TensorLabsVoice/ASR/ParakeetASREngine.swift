@@ -64,31 +64,21 @@ final class ParakeetASREngine: ASREngine {
     }
 
     func transcribe(audioStream: AsyncThrowingStream<[Float], Error>) -> AsyncThrowingStream<ASREvent, Error> {
-        AsyncThrowingStream { continuation in
-            Task { @MainActor in
-                do {
-                    guard let model else {
-                        throw ParakeetASREngineError.modelNotInitialized
-                    }
-
-                    var samples: [Float] = []
-                    for try await chunk in audioStream {
-                        samples.append(contentsOf: chunk)
-                    }
-
-                    if samples.isEmpty {
-                        continuation.yield(.final(""))
-                        continuation.finish()
-                        return
-                    }
-
-                    let text = try model.transcribeAudio(samples, sampleRate: 16_000)
-                    continuation.yield(.final(text.trimmingCharacters(in: .whitespacesAndNewlines)))
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+        guard let model else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: ParakeetASREngineError.modelNotInitialized)
             }
+        }
+
+        let modelBox = UncheckedSendableBox(model)
+        let config = StreamingSegmentationConfig(
+            partialResultInterval: 0.75,
+            maxSegmentDuration: 10.0,
+            emitPartialResults: true
+        )
+        let transcriber = StreamingSegmentTranscriber(config: config)
+        return transcriber.transcribe(audioStream: audioStream) { samples in
+            try modelBox.value.transcribeAudio(samples, sampleRate: 16_000)
         }
     }
 

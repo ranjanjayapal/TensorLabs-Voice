@@ -10,6 +10,14 @@ final class AudioCaptureService {
     private var continuation: AsyncThrowingStream<[Float], Error>.Continuation?
     var onLevelUpdate: ((Float) -> Void)?
     private let targetSampleRate: Double = 16_000
+    private let targetFormat = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false
+    )!
+    private var converter: AVAudioConverter?
+    private var converterInputFormat: AVAudioFormat?
 
     func startCaptureStream() -> AsyncThrowingStream<[Float], Error> {
         AsyncThrowingStream { continuation in
@@ -41,6 +49,11 @@ final class AudioCaptureService {
             throw AudioCaptureError.inputUnavailable
         }
 
+        if converterInputFormat?.sampleRate != format.sampleRate || converterInputFormat?.channelCount != format.channelCount {
+            converter = AVAudioConverter(from: format, to: targetFormat)
+            converterInputFormat = format
+        }
+
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             guard let self else { return }
@@ -56,73 +69,67 @@ final class AudioCaptureService {
     }
 
     private func toMono16kFloat(buffer: AVAudioPCMBuffer) -> [Float] {
+        let format = buffer.format
+        guard buffer.frameLength > 0 else { return [] }
+
+        if
+            abs(format.sampleRate - targetSampleRate) < 0.1,
+            format.channelCount == 1,
+            format.commonFormat == .pcmFormatFloat32,
+            let channelData = buffer.floatChannelData
+        {
+            return Array(UnsafeBufferPointer(start: channelData[0], count: Int(buffer.frameLength)))
+        }
+
+        guard let converter else {
+            return extractFallbackMono(buffer: buffer)
+        }
+
+        let outputFrameCapacity = AVAudioFrameCount(
+            ceil(Double(buffer.frameLength) * targetSampleRate / format.sampleRate)
+        ) + 32
+
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outputFrameCapacity) else {
+            return extractFallbackMono(buffer: buffer)
+        }
+
+        var consumedInput = false
+        var conversionError: NSError?
+        let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
+            if consumedInput {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            consumedInput = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+
+        guard status != .error, conversionError == nil, let channelData = outputBuffer.floatChannelData else {
+            return extractFallbackMono(buffer: buffer)
+        }
+
+        return Array(UnsafeBufferPointer(start: channelData[0], count: Int(outputBuffer.frameLength)))
+    }
+
+    private func extractFallbackMono(buffer: AVAudioPCMBuffer) -> [Float] {
         let frameLength = Int(buffer.frameLength)
         let channelCount = Int(buffer.format.channelCount)
         guard frameLength > 0, channelCount > 0 else { return [] }
 
-        let mono: [Float]
         if let floatData = buffer.floatChannelData {
-            var result = [Float](repeating: 0.0, count: frameLength)
+            var output = [Float](repeating: 0, count: frameLength)
             for frameIndex in 0..<frameLength {
                 var sum: Float = 0
                 for channelIndex in 0..<channelCount {
                     sum += floatData[channelIndex][frameIndex]
                 }
-                result[frameIndex] = sum / Float(channelCount)
+                output[frameIndex] = sum / Float(channelCount)
             }
-            mono = result
-        } else if let int16Data = buffer.int16ChannelData {
-            var result = [Float](repeating: 0.0, count: frameLength)
-            let scale: Float = 1.0 / Float(Int16.max)
-            for frameIndex in 0..<frameLength {
-                var sum: Float = 0
-                for channelIndex in 0..<channelCount {
-                    sum += Float(int16Data[channelIndex][frameIndex]) * scale
-                }
-                result[frameIndex] = sum / Float(channelCount)
-            }
-            mono = result
-        } else if let int32Data = buffer.int32ChannelData {
-            var result = [Float](repeating: 0.0, count: frameLength)
-            let scale: Float = 1.0 / Float(Int32.max)
-            for frameIndex in 0..<frameLength {
-                var sum: Float = 0
-                for channelIndex in 0..<channelCount {
-                    sum += Float(int32Data[channelIndex][frameIndex]) * scale
-                }
-                result[frameIndex] = sum / Float(channelCount)
-            }
-            mono = result
-        } else {
-            return []
+            return output
         }
 
-        let sampleRate = buffer.format.sampleRate
-        if abs(sampleRate - targetSampleRate) < 0.1 {
-            return mono
-        }
-
-        return resampleLinear(mono, from: sampleRate, to: targetSampleRate)
-    }
-
-    private func resampleLinear(_ samples: [Float], from sourceRate: Double, to targetRate: Double) -> [Float] {
-        guard !samples.isEmpty, sourceRate > 0, targetRate > 0 else { return samples }
-
-        let ratio = sourceRate / targetRate
-        let outputCount = max(1, Int(Double(samples.count) / ratio))
-        var output = [Float](repeating: 0, count: outputCount)
-
-        for index in 0..<outputCount {
-            let sourceIndex = Double(index) * ratio
-            let lower = Int(sourceIndex)
-            let upper = min(lower + 1, samples.count - 1)
-            let fraction = Float(sourceIndex - Double(lower))
-            let lowerValue = samples[lower]
-            let upperValue = samples[upper]
-            output[index] = lowerValue + ((upperValue - lowerValue) * fraction)
-        }
-
-        return output
+        return []
     }
 
     private func calculateRMS(_ samples: [Float]) -> Float {

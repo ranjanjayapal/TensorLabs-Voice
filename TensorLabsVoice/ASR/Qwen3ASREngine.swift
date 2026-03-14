@@ -17,6 +17,7 @@ final class Qwen3ASREngine: ASREngine {
     private let languageProvider: () -> TranscriptionLanguage
     private var model: Qwen3ASRModel?
     private var preparedModelId: String?
+    private let streamingTranscriber = StreamingSegmentTranscriber()
 
     init(
         modelManager: ModelManager,
@@ -58,35 +59,20 @@ final class Qwen3ASREngine: ASREngine {
     }
 
     func transcribe(audioStream: AsyncThrowingStream<[Float], Error>) -> AsyncThrowingStream<ASREvent, Error> {
-        AsyncThrowingStream { continuation in
-            Task { @MainActor in
-                do {
-                    guard let model else {
-                        throw Qwen3ASREngineError.modelNotInitialized
-                    }
-
-                    var samples: [Float] = []
-                    for try await chunk in audioStream {
-                        samples.append(contentsOf: chunk)
-                    }
-
-                    if samples.isEmpty {
-                        continuation.yield(.final(""))
-                        continuation.finish()
-                        return
-                    }
-
-                    let text = model.transcribe(
-                        audio: samples,
-                        sampleRate: 16_000,
-                        language: languageProvider().qwenLanguageHint
-                    )
-                    continuation.yield(.final(text.trimmingCharacters(in: .whitespacesAndNewlines)))
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
+        guard let model else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: Qwen3ASREngineError.modelNotInitialized)
             }
+        }
+
+        let modelBox = UncheckedSendableBox(model)
+        let language = languageProvider().qwenLanguageHint
+        return streamingTranscriber.transcribe(audioStream: audioStream) { samples in
+            modelBox.value.transcribe(
+                audio: samples,
+                sampleRate: 16_000,
+                language: language
+            )
         }
     }
 

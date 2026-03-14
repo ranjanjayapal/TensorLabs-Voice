@@ -13,6 +13,10 @@ final class PreferredLocalASREngine: ASREngine {
     private let whisperEngine: WhisperKitEngine
     private var activeEngine: ASREngine?
 
+    var activeEngineID: String {
+        (activeEngine ?? selectedEngine()).id
+    }
+
     init(
         modelManager: ModelManager,
         modeProvider: @escaping () -> DictationMode,

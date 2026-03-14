@@ -13,4 +13,22 @@ final class ASRPipelineTests: XCTestCase {
         let output = processor.normalize("what time is it?")
         XCTAssertEqual(output, "What time is it?")
     }
+
+    func testPostProcessorMapsSpokenPunctuation() {
+        let processor = PostProcessor()
+        let output = processor.normalize("hello comma world question mark")
+        XCTAssertEqual(output, "Hello, world?")
+    }
+
+    func testPostProcessorSupportsParagraphCommands() {
+        let processor = PostProcessor()
+        let output = processor.normalize("first line new paragraph second line")
+        XCTAssertEqual(output, "First line.\n\nSecond line.")
+    }
+
+    func testPostProcessorCollapsesDuplicateCommas() {
+        let processor = PostProcessor()
+        let output = processor.normalize("hello, comma world")
+        XCTAssertEqual(output, "Hello, world.")
+    }
 }

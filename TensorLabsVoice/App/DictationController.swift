@@ -223,20 +223,28 @@ final class DictationController {
             let stream = audioCaptureService.startCaptureStream()
 
             do {
-                var finalText = ""
+                var finalizedSegments: [String] = []
+                var latestPartial = ""
                 for try await event in engine.transcribe(audioStream: stream) {
                     switch event {
-                    case .partial:
-                        continue
+                    case let .partial(text):
+                        latestPartial = text
+                        overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial))
                     case let .final(text):
-                        finalText = text
+                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            finalizedSegments.append(trimmed)
+                        }
+                        latestPartial = ""
+                        overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: nil))
                     }
                 }
 
+                let finalText = renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial)
                 let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
                 var insertionSucceeded = false
                 if !normalized.isEmpty {
-                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    try? await Task.sleep(nanoseconds: 50_000_000)
                     insertionSucceeded = textInsertionService.insertText(
                         normalized,
                         mode: insertionModeProvider()
@@ -282,5 +290,17 @@ final class DictationController {
             captureTask = nil
             isCapturing = false
         }
+    }
+
+    private func renderTranscript(finalizedSegments: [String], partial: String?) -> String {
+        let partialParts: [String]
+        if let partial {
+            let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+            partialParts = trimmed.isEmpty ? [] : [trimmed]
+        } else {
+            partialParts = []
+        }
+        let parts = finalizedSegments + partialParts
+        return parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
