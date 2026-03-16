@@ -10,6 +10,7 @@ final class AudioCaptureService {
     private var continuation: AsyncThrowingStream<[Float], Error>.Continuation?
     var onLevelUpdate: ((Float) -> Void)?
     private let targetSampleRate: Double = 16_000
+    private let maxPrebufferSamples = 5_600
     private let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: 16_000,
@@ -18,13 +19,18 @@ final class AudioCaptureService {
     )!
     private var converter: AVAudioConverter?
     private var converterInputFormat: AVAudioFormat?
+    private var isMonitoring = false
+    private var recentSamples: [Float] = []
 
     func startCaptureStream() -> AsyncThrowingStream<[Float], Error> {
         AsyncThrowingStream { continuation in
             self.continuation = continuation
 
             do {
-                try configureTap()
+                try primeCapture()
+                if !recentSamples.isEmpty {
+                    continuation.yield(recentSamples)
+                }
             } catch {
                 continuation.finish(throwing: error)
             }
@@ -32,14 +38,28 @@ final class AudioCaptureService {
     }
 
     func stopCapture() {
+        continuation?.finish()
+        continuation = nil
+    }
+
+    func primeCapture() throws {
+        if isMonitoring {
+            return
+        }
+        try configureTap()
+        isMonitoring = true
+    }
+
+    func shutdown() {
+        continuation?.finish()
+        continuation = nil
+        recentSamples.removeAll(keepingCapacity: true)
+        isMonitoring = false
         engine.inputNode.removeTap(onBus: 0)
 
         if engine.isRunning {
             engine.stop()
         }
-
-        continuation?.finish()
-        continuation = nil
     }
 
     private func configureTap() throws {
@@ -59,6 +79,7 @@ final class AudioCaptureService {
             guard let self else { return }
             let values = self.toMono16kFloat(buffer: buffer)
             let level = self.calculateRMS(values)
+            self.appendToPrebuffer(values)
             self.onLevelUpdate?(level)
             self.continuation?.yield(values)
         }
@@ -130,6 +151,14 @@ final class AudioCaptureService {
         }
 
         return []
+    }
+
+    private func appendToPrebuffer(_ samples: [Float]) {
+        guard !samples.isEmpty else { return }
+        recentSamples.append(contentsOf: samples)
+        if recentSamples.count > maxPrebufferSamples {
+            recentSamples.removeFirst(recentSamples.count - maxPrebufferSamples)
+        }
     }
 
     private func calculateRMS(_ samples: [Float]) -> Float {

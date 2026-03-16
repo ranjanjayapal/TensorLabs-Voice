@@ -29,7 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let audioCaptureService = AudioCaptureService()
+        let assistantAudioCaptureService = AudioCaptureService()
         let hotkeyService = GlobalHotkeyService()
+        let assistantHotkeyService = GlobalHotkeyService()
         let textInsertionService = TextInsertionService()
         let postProcessor = PostProcessor()
         let metricsLogger = LocalMetricsLogger()
@@ -112,13 +114,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.settingsStore.insertionMode ?? .accessibilityFirst
             }
         )
+        let assistantController = AssistantController(
+            engine: asrEngine,
+            audioCaptureService: assistantAudioCaptureService,
+            hotkeyService: assistantHotkeyService,
+            postProcessor: postProcessor,
+            metricsLogger: metricsLogger,
+            overlayController: overlayController,
+            permissionService: permissionService,
+            hotkeyProvider: { [weak self] in
+                self?.settingsStore.hotkeyShortcut ?? .default
+            },
+            postProcessorOptionsProvider: { [weak self] in
+                guard let self else { return .default }
+                return PostProcessor.Options(
+                    customWordReplacements: self.settingsStore.customWordReplacements,
+                    enableSmartListFormatting: self.settingsStore.enableSmartListFormatting,
+                    applyEnglishCasingAndPunctuation: self.settingsStore.transcriptionLanguage != .kannada,
+                    enableSpokenPunctuation: self.settingsStore.transcriptionLanguage != .kannada
+                )
+            },
+            preparationKeyProvider: { [weak self] in
+                guard let self else { return "assistant:balanced:auto" }
+                return "assistant:\(self.settingsStore.dictationMode.rawValue):\(self.settingsStore.transcriptionLanguage.rawValue)"
+            },
+            speechSynthesizer: LocalSpeechSynthesizer(),
+            assistantBrain: RuleBasedAssistantBrain()
+        )
 
         menuBarController = MenuBarController(
             dictationController: dictationController,
+            assistantController: assistantController,
             settingsStore: settingsStore
         )
-        menuBarController?.enableDictationOnLaunch()
-        dictationController.prewarmEngine()
+        menuBarController?.enableSelectedModeOnLaunch()
+        if settingsStore.appMode == .assistant {
+            assistantController.prewarmEngine()
+        } else {
+            dictationController.prewarmEngine()
+        }
 
         // Reflect actual system login-item status in settings at launch.
         settingsStore.launchAtLogin = launchAtLoginService.isEnabled()
@@ -135,6 +169,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.settingsStore.launchAtLoginStatusText = self.settingsStore.launchAtLogin ? "Enabled" : "Disabled"
             }
             .store(in: &cancellables)
+
+        settingsStore.$appMode
+            .dropFirst()
+            .sink { [weak self] mode in
+                guard let self else { return }
+                Task { @MainActor in
+                    let shouldRemainEnabled = dictationController.isEnabled || assistantController.isEnabled
+                    if dictationController.isEnabled {
+                        await dictationController.setEnabled(false)
+                    }
+                    if assistantController.isEnabled {
+                        await assistantController.setEnabled(false)
+                    }
+
+                    if shouldRemainEnabled {
+                        if mode == .assistant {
+                            await assistantController.setEnabled(true)
+                            assistantController.prewarmEngine()
+                        } else {
+                            await dictationController.setEnabled(true)
+                            dictationController.prewarmEngine()
+                        }
+                    }
+
+                    self.menuBarController?.refreshMenuState()
+                }
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -144,6 +206,18 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             Form {
+                Picker("App mode", selection: $settings.appMode) {
+                    Text("Dictation").tag(AppMode.dictation)
+                    Text("Assistant").tag(AppMode.assistant)
+                }
+
+                Text(settings.appMode == .assistant
+                    ? "Assistant mode listens on the hotkey, transcribes locally, generates a local reply, and speaks it back."
+                    : "Dictation mode listens on the hotkey and inserts the recognized text into the focused app."
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
                 Picker("Dictation mode", selection: $settings.dictationMode) {
                     Text("Fast").tag(DictationMode.fast)
                     Text("Balanced").tag(DictationMode.balanced)

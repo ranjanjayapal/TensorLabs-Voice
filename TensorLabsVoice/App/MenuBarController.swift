@@ -5,13 +5,15 @@ import SwiftUI
 final class MenuBarController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let dictationController: DictationController
+    private let assistantController: AssistantController
     private let settingsStore: SettingsStore
     private var settingsWindow: NSWindow?
 
-    private lazy var toggleItem = NSMenuItem(title: "Enable Dictation", action: #selector(toggleDictation), keyEquivalent: "")
+    private lazy var toggleItem = NSMenuItem(title: "Enable Dictation", action: #selector(toggleMode), keyEquivalent: "")
 
-    init(dictationController: DictationController, settingsStore: SettingsStore) {
+    init(dictationController: DictationController, assistantController: AssistantController, settingsStore: SettingsStore) {
         self.dictationController = dictationController
+        self.assistantController = assistantController
         self.settingsStore = settingsStore
         super.init()
         configureStatusItem()
@@ -55,18 +57,23 @@ final class MenuBarController: NSObject {
         refreshMenuState()
     }
 
-    private func refreshMenuState() {
-        let enabled = dictationController.isEnabled
-        toggleItem.title = enabled ? "Disable Dictation" : "Enable Dictation"
+    func refreshMenuState() {
+        let enabled = currentModeEnabled
+        let title = settingsStore.appMode == .assistant ? "Assistant" : "Dictation"
+        toggleItem.title = enabled ? "Disable \(title)" : "Enable \(title)"
         toggleItem.state = enabled ? .on : .off
     }
 
-    @objc private func toggleDictation() {
+    @objc private func toggleMode() {
         toggleItem.isEnabled = false
-        let target = !dictationController.isEnabled
+        let target = !currentModeEnabled
 
         Task { @MainActor in
-            await dictationController.setEnabled(target)
+            if settingsStore.appMode == .assistant {
+                await assistantController.setEnabled(target)
+            } else {
+                await dictationController.setEnabled(target)
+            }
             refreshMenuState()
             toggleItem.isEnabled = true
         }
@@ -94,12 +101,16 @@ final class MenuBarController: NSObject {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func enableDictationOnLaunch() {
+    func enableSelectedModeOnLaunch() {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 900_000_000)
-            guard !dictationController.isEnabled else { return }
+            guard !currentModeEnabled else { return }
             toggleItem.isEnabled = false
-            await dictationController.setEnabled(true)
+            if settingsStore.appMode == .assistant {
+                await assistantController.setEnabled(true)
+            } else {
+                await dictationController.setEnabled(true)
+            }
             refreshMenuState()
             toggleItem.isEnabled = true
         }
@@ -107,5 +118,9 @@ final class MenuBarController: NSObject {
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    private var currentModeEnabled: Bool {
+        settingsStore.appMode == .assistant ? assistantController.isEnabled : dictationController.isEnabled
     }
 }

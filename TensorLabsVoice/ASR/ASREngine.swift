@@ -16,13 +16,14 @@ protocol ASREngine {
 
 struct StreamingSegmentationConfig {
     var windowSize = 512
-    var onsetThreshold: Float = 0.015
-    var offsetThreshold: Float = 0.008
-    var minSpeechDuration: Float = 0.18
+    var onsetThreshold: Float = 0.012
+    var offsetThreshold: Float = 0.006
+    var minSpeechDuration: Float = 0.12
     var minSilenceDuration: Float = 0.42
-    var preSpeechPadding: Float = 0.12
+    var preSpeechPadding: Float = 0.22
     var partialResultInterval: Float = 0.9
     var maxSegmentDuration: Float = 12.0
+    var minSegmentDurationBeforeSplit: Float = 0.85
     var emitPartialResults = true
 
     static let `default` = StreamingSegmentationConfig()
@@ -72,11 +73,6 @@ final class StreamingSegmentTranscriber: @unchecked Sendable {
                     return try await decodeSegment(slice).trimmingCharacters(in: .whitespacesAndNewlines)
                 }
 
-                func combinedText(with partial: String?) -> String {
-                    let parts = finalizedSegments + (partial.map { $0.isEmpty ? [] : [$0] } ?? [])
-                    return parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-
                 func emitFinal(startSample: Int, endSample: Int) async throws {
                     let text = try await segmentText(from: startSample, to: endSample)
                     guard !text.isEmpty else { return }
@@ -91,7 +87,7 @@ final class StreamingSegmentTranscriber: @unchecked Sendable {
                     guard elapsed >= config.partialResultInterval else { return }
                     let partial = try await segmentText(from: startSample, to: endSample)
                     guard !partial.isEmpty else { return }
-                    continuation.yield(.partial(combinedText(with: partial)))
+                    continuation.yield(.partial(partial))
                     lastPartialSample = endSample
                 }
 
@@ -131,6 +127,8 @@ final class StreamingSegmentTranscriber: @unchecked Sendable {
                         }
                     case .pendingSilence(let startSample, let silenceStartSample):
                         if energy >= config.onsetThreshold {
+                            state = .speech(startSample: startSample)
+                        } else if speechDuration(from: startSample, to: silenceStartSample) < config.minSegmentDurationBeforeSplit {
                             state = .speech(startSample: startSample)
                         } else if speechDuration(from: silenceStartSample, to: frameEndSample) >= config.minSilenceDuration {
                             try await emitFinal(startSample: startSample, endSample: silenceStartSample)

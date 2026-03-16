@@ -1,5 +1,10 @@
 import Foundation
 
+enum AppMode: String, Codable {
+    case dictation
+    case assistant
+}
+
 enum InsertionMode: String, Codable {
     case accessibilityFirst
     case pasteboardFirst
@@ -7,6 +12,10 @@ enum InsertionMode: String, Codable {
 
 @MainActor
 final class SettingsStore: ObservableObject {
+    @Published var appMode: AppMode {
+        didSet { defaults.set(appMode.rawValue, forKey: Keys.appMode) }
+    }
+
     @Published var dictationMode: DictationMode {
         didSet { defaults.set(dictationMode.rawValue, forKey: Keys.dictationMode) }
     }
@@ -60,6 +69,7 @@ final class SettingsStore: ObservableObject {
     private let defaults: UserDefaults
 
     private enum Keys {
+        static let appMode = "settings.appMode"
         static let dictationMode = "settings.dictationMode"
         static let legacyModelProfile = "settings.modelProfile"
         static let insertionMode = "settings.insertionMode"
@@ -77,6 +87,9 @@ final class SettingsStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+
+        let appModeValue = defaults.string(forKey: Keys.appMode)
+        appMode = AppMode(rawValue: appModeValue ?? "") ?? .dictation
 
         let modeValue = defaults.string(forKey: Keys.dictationMode)
         if let modeValue, let mode = DictationMode(rawValue: modeValue) {
