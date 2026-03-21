@@ -138,6 +138,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return "assistant:balanced:auto" }
                 return "assistant:\(self.settingsStore.dictationMode.rawValue):\(self.settingsStore.transcriptionLanguage.rawValue)"
             },
+            responseLanguageProvider: { [weak self] in
+                self?.settingsStore.transcriptionLanguage ?? .auto
+            },
             speechSynthesizer: LocalSpeechSynthesizer(),
             assistantBrain: RuleBasedAssistantBrain()
         )

@@ -5,6 +5,7 @@ import SwiftUI
 final class ListeningOverlayController {
     fileprivate final class OverlayModel: ObservableObject {
         @Published var level: CGFloat = 0.05
+        @Published var status: String = "Listening"
         @Published var transcript: String = "Listening..."
     }
 
@@ -22,6 +23,7 @@ final class ListeningOverlayController {
     func hide() {
         panel?.orderOut(nil)
         model.level = 0.05
+        model.status = "Listening"
         model.transcript = "Listening..."
     }
 
@@ -32,6 +34,11 @@ final class ListeningOverlayController {
     func updateTranscript(_ transcript: String) {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         model.transcript = trimmed.isEmpty ? "Listening..." : trimmed
+    }
+
+    func updateStatus(_ status: String) {
+        let trimmed = status.trimmingCharacters(in: .whitespacesAndNewlines)
+        model.status = trimmed.isEmpty ? "Listening" : trimmed
     }
 
     private func buildPanel() -> NSPanel {
@@ -73,6 +80,17 @@ private struct ListeningOverlayView: View {
             let accent = 0.2 + (0.8 * model.level)
 
             VStack(spacing: 10) {
+                Text(model.status.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .kerning(1.2)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    )
+
                 HStack(spacing: 7) {
                     ForEach(0..<20, id: \.self) { idx in
                         let phase = t * 9 + Double(idx) * 0.38

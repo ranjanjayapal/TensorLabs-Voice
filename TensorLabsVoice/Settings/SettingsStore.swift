@@ -1,5 +1,7 @@
 import Foundation
 
+let enableDiagnosticsDefaultsKey = "settings.enableDiagnostics"
+
 enum AppMode: String, Codable {
     case dictation
     case assistant
@@ -74,7 +76,7 @@ final class SettingsStore: ObservableObject {
         static let legacyModelProfile = "settings.modelProfile"
         static let insertionMode = "settings.insertionMode"
         static let transcriptionLanguage = "settings.transcriptionLanguage"
-        static let enableDiagnostics = "settings.enableDiagnostics"
+        static let enableDiagnostics = enableDiagnosticsDefaultsKey
         static let launchAtLogin = "settings.launchAtLogin"
         static let hotkeyKey = "settings.hotkey.key"
         static let hotkeyCommand = "settings.hotkey.command"

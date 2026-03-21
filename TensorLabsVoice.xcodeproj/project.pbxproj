@@ -31,6 +31,7 @@
 		D5A6C678D9443114C2E6AB43 /* ParakeetASR in Frameworks */ = {isa = PBXBuildFile; productRef = 6962DCD0C4B84A6F185FE453 /* ParakeetASR */; };
 		D69285DF7410A226F7D09566 /* Qwen3ASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B842E482B450C7564780A2 /* Qwen3ASREngine.swift */; };
 		ED41288CB0F1896155CB5901 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287EDB5BB88B77E60B31392D /* LaunchAtLoginService.swift */; };
+		F0E4E6F49A2E4F8FA8C0D001 /* VoiceSessionMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5A4B0E1D3A4B8D9C2F7A11 /* VoiceSessionMetrics.swift */; };
 		F4F1C59EF5BDEDD7F6D53F39 /* LocalMetricsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */; };
 /* End PBXBuildFile section */
 
@@ -58,6 +59,7 @@
 		F0BF10188EE3F526AEBC49DE /* ListeningOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningOverlayController.swift; sourceTree = "<group>"; };
 		F7D3184835D1623D9491E4B7 /* PostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostProcessor.swift; sourceTree = "<group>"; };
 		FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMetricsLogger.swift; sourceTree = "<group>"; };
+		6C5A4B0E1D3A4B8D9C2F7A11 /* VoiceSessionMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionMetrics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */,
+				6C5A4B0E1D3A4B8D9C2F7A11 /* VoiceSessionMetrics.swift */,
 			);
 			path = Diagnostics;
 			sourceTree = "<group>";
@@ -284,6 +287,7 @@
 				77CDFF328A3251FA38084C90 /* SettingsStore.swift in Sources */,
 				AD8327FE684E539F5EC81D8E /* TensorLabsVoiceApp.swift in Sources */,
 				0A2D04BA579112D939CC4491 /* TextInsertionService.swift in Sources */,
+				F0E4E6F49A2E4F8FA8C0D001 /* VoiceSessionMetrics.swift in Sources */,
 				7A8E1B924F74C2E572EE8A95 /* WhisperKitEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -12,6 +12,7 @@ final class LocalMetricsLogger: @unchecked Sendable {
     }
 
     func log(event: String, metadata: [String: String]) {
+        guard diagnosticsEnabled else { return }
         queue.async {
             var payload = metadata
             payload["event"] = event
@@ -32,7 +33,12 @@ final class LocalMetricsLogger: @unchecked Sendable {
     func logStatus(_ message: String, metadata: [String: String] = [:]) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         print("[TensorLabsVoice] \(timestamp) \(message)")
+        guard diagnosticsEnabled else { return }
         log(event: "status", metadata: metadata.merging(["message": message]) { _, new in new })
+    }
+
+    private var diagnosticsEnabled: Bool {
+        UserDefaults.standard.object(forKey: enableDiagnosticsDefaultsKey) as? Bool ?? true
     }
 
     private func append(_ line: String) {

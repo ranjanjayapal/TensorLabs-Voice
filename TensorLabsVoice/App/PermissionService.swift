@@ -8,8 +8,13 @@ struct PermissionStatus {
     let speechGranted: Bool
     let accessibilityGranted: Bool
 
-    func satisfiesRequirements(requiresSpeechRecognition: Bool) -> Bool {
-        microphoneGranted && accessibilityGranted && (!requiresSpeechRecognition || speechGranted)
+    func satisfiesRequirements(
+        requiresSpeechRecognition: Bool,
+        requiresAccessibility: Bool = true
+    ) -> Bool {
+        microphoneGranted
+            && (!requiresAccessibility || accessibilityGranted)
+            && (!requiresSpeechRecognition || speechGranted)
     }
 }
 
@@ -23,10 +28,13 @@ final class PermissionService {
         )
     }
 
-    func requestRequiredPermissions(requiresSpeechRecognition: Bool) async -> PermissionStatus {
+    func requestRequiredPermissions(
+        requiresSpeechRecognition: Bool,
+        requiresAccessibility: Bool = true
+    ) async -> PermissionStatus {
         let microphoneGranted = await requestMicrophonePermission()
         let speechGranted = requiresSpeechRecognition ? await requestSpeechPermission() : currentStatus().speechGranted
-        let accessibilityGranted = requestAccessibilityPermission()
+        let accessibilityGranted = requiresAccessibility ? requestAccessibilityPermission() : currentStatus().accessibilityGranted
         return PermissionStatus(
             microphoneGranted: microphoneGranted,
             speechGranted: speechGranted,

@@ -56,9 +56,13 @@ final class DictationController {
     func setEnabled(_ enabled: Bool) async {
         if enabled {
             let status = await permissionService.requestRequiredPermissions(
-                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
+                requiresAccessibility: true
             )
-            guard status.satisfiesRequirements(requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission) else {
+            guard status.satisfiesRequirements(
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
+                requiresAccessibility: true
+            ) else {
                 metricsLogger.log(event: "permissions_denied", metadata: [
                     "microphone": status.microphoneGranted ? "granted" : "denied",
                     "speech": status.speechGranted ? "granted" : "denied",
@@ -78,6 +82,7 @@ final class DictationController {
             }, onRelease: { [weak self] in
                 self?.stopCapture(graceful: true)
             })
+            try? audioCaptureService.primeCapture()
 
             isEnabled = true
             return
@@ -92,9 +97,13 @@ final class DictationController {
     func prewarmEngine() {
         Task { @MainActor in
             let status = permissionService.currentStatus()
-            guard status.satisfiesRequirements(requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission) else {
+            guard status.satisfiesRequirements(
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
+                requiresAccessibility: true
+            ) else {
                 return
             }
+            try? audioCaptureService.primeCapture()
             _ = await prepareIfNeeded()
         }
     }
@@ -209,14 +218,23 @@ final class DictationController {
         guard captureTask == nil, !isCapturing else { return }
 
         captureTask = Task { @MainActor in
-            guard await prepareIfNeeded() else {
+            defer {
+                isCapturing = false
+                audioCaptureService.onLevelUpdate = nil
+                overlayController.hide()
+                audioCaptureService.shutdown()
                 captureTask = nil
+            }
+
+            guard await prepareIfNeeded() else {
                 return
             }
 
             isCapturing = true
+            overlayController.updateStatus("Listening")
+            overlayController.updateTranscript("Listening...")
             overlayController.show()
-            let startedAt = Date()
+            var sessionMetrics = VoiceSessionMetrics()
             audioCaptureService.onLevelUpdate = { [weak self] level in
                 Task { @MainActor [weak self] in
                     self?.overlayController.updateLevel(level)
@@ -230,6 +248,7 @@ final class DictationController {
                 for try await event in engine.transcribe(audioStream: stream) {
                     switch event {
                     case let .partial(text):
+                        sessionMetrics.markFirstPartial()
                         latestPartial = text
                         overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial))
                     case let .final(text):
@@ -242,37 +261,39 @@ final class DictationController {
                     }
                 }
 
+                sessionMetrics.markTranscriptionFinished()
                 let finalText = renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial)
                 let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
+                sessionMetrics.markPostProcessingFinished()
                 var insertionSucceeded = false
                 if !normalized.isEmpty {
+                    overlayController.updateStatus("Inserting")
                     try? await Task.sleep(nanoseconds: 50_000_000)
                     insertionSucceeded = textInsertionService.insertText(
                         normalized,
                         mode: insertionModeProvider()
                     )
                 }
+                sessionMetrics.markInsertionFinished()
 
-                let elapsed = Date().timeIntervalSince(startedAt)
                 let engineUsed = (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id
                 let fallbackUsed = (engine as? FallbackASREngine)?.lastFallbackUsed ?? false
-                metricsLogger.log(event: "capture_complete", metadata: [
-                    "elapsed_seconds": String(format: "%.2f", elapsed),
+                metricsLogger.log(event: "capture_complete", metadata: sessionMetrics.metadata(additional: [
                     "raw_characters": "\(finalText.count)",
                     "characters": "\(normalized.count)",
                     "inserted": insertionSucceeded ? "true" : "false",
                     "engine_used": engineUsed,
                     "fallback_used": fallbackUsed ? "true" : "false",
-                ])
+                ]))
             } catch {
-                metricsLogger.log(event: "capture_failed", metadata: ["error": error.localizedDescription])
+                if Task.isCancelled {
+                    metricsLogger.log(event: "capture_cancelled", metadata: [
+                        "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
+                    ])
+                } else {
+                    metricsLogger.log(event: "capture_failed", metadata: ["error": error.localizedDescription])
+                }
             }
-
-            isCapturing = false
-            audioCaptureService.onLevelUpdate = nil
-            overlayController.hide()
-            audioCaptureService.shutdown()
-            captureTask = nil
         }
     }
 
@@ -280,6 +301,12 @@ final class DictationController {
         guard isCapturing else { return }
         audioCaptureService.stopCapture()
         audioCaptureService.onLevelUpdate = nil
+
+        if graceful {
+            isCapturing = false
+            overlayController.updateStatus("Transcribing")
+            return
+        }
 
         if !graceful {
             overlayController.hide()
@@ -310,6 +337,29 @@ final class DictationController {
 
 protocol AssistantBrain: Sendable {
     func reply(to transcript: String) async -> String
+}
+
+private enum AssistantInteractionState: String {
+    case idle
+    case listening
+    case transcribing
+    case thinking
+    case speaking
+
+    var overlayStatus: String {
+        switch self {
+        case .idle:
+            return "Ready"
+        case .listening:
+            return "Listening"
+        case .transcribing:
+            return "Transcribing"
+        case .thinking:
+            return "Thinking"
+        case .speaking:
+            return "Speaking"
+        }
+    }
 }
 
 struct RuleBasedAssistantBrain: AssistantBrain {
@@ -421,6 +471,7 @@ final class AssistantController {
     private let hotkeyProvider: () -> HotkeyShortcut
     private let postProcessorOptionsProvider: () -> PostProcessor.Options
     private let preparationKeyProvider: () -> String
+    private let responseLanguageProvider: () -> TranscriptionLanguage
     private let speechSynthesizer: LocalSpeechSynthesizer
     private let assistantBrain: AssistantBrain
 
@@ -429,6 +480,8 @@ final class AssistantController {
     private var isCapturing = false
     private var isPrepared = false
     private var lastPreparationKey: String?
+    private var interactionState: AssistantInteractionState = .idle
+    private var shouldRestartAfterCurrentInteraction = false
 
     private(set) var isEnabled = false
 
@@ -443,6 +496,7 @@ final class AssistantController {
         hotkeyProvider: @escaping () -> HotkeyShortcut,
         postProcessorOptionsProvider: @escaping () -> PostProcessor.Options,
         preparationKeyProvider: @escaping () -> String,
+        responseLanguageProvider: @escaping () -> TranscriptionLanguage,
         speechSynthesizer: LocalSpeechSynthesizer,
         assistantBrain: AssistantBrain
     ) {
@@ -456,6 +510,7 @@ final class AssistantController {
         self.hotkeyProvider = hotkeyProvider
         self.postProcessorOptionsProvider = postProcessorOptionsProvider
         self.preparationKeyProvider = preparationKeyProvider
+        self.responseLanguageProvider = responseLanguageProvider
         self.speechSynthesizer = speechSynthesizer
         self.assistantBrain = assistantBrain
     }
@@ -463,22 +518,30 @@ final class AssistantController {
     func setEnabled(_ enabled: Bool) async {
         if enabled {
             let status = await permissionService.requestRequiredPermissions(
-                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
+                requiresAccessibility: false
             )
-            guard status.satisfiesRequirements(requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission) else {
+            guard status.satisfiesRequirements(
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
+                requiresAccessibility: false
+            ) else {
                 metricsLogger.log(event: "assistant_permissions_denied", metadata: [
                     "microphone": status.microphoneGranted ? "granted" : "denied",
                     "speech": status.speechGranted ? "granted" : "denied",
                     "accessibility": status.accessibilityGranted ? "granted" : "denied",
                 ])
+                showPermissionGuidance(
+                    microphoneGranted: status.microphoneGranted,
+                    speechGranted: status.speechGranted
+                )
                 isEnabled = false
                 return
             }
 
             hotkeyService.startListening(shortcut: hotkeyProvider(), onPress: { [weak self] in
-                self?.startCapture()
+                self?.handleHotkeyPress()
             }, onRelease: { [weak self] in
-                self?.stopCapture(graceful: true)
+                self?.handleHotkeyRelease()
             })
             try? audioCaptureService.primeCapture()
 
@@ -487,20 +550,50 @@ final class AssistantController {
         }
 
         hotkeyService.stopListening()
+        shouldRestartAfterCurrentInteraction = false
         stopCapture(graceful: false)
         audioCaptureService.shutdown()
         speechSynthesizer.stopSpeaking()
+        interactionState = .idle
         isEnabled = false
     }
 
     func prewarmEngine() {
         Task { @MainActor in
             let status = permissionService.currentStatus()
-            guard status.satisfiesRequirements(requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission) else {
+            guard status.satisfiesRequirements(
+                requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
+                requiresAccessibility: false
+            ) else {
                 return
             }
             try? audioCaptureService.primeCapture()
             _ = await prepareIfNeeded()
+        }
+    }
+
+    private func showPermissionGuidance(
+        microphoneGranted: Bool,
+        speechGranted: Bool
+    ) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Permissions Required"
+        if !microphoneGranted, !speechGranted {
+            alert.informativeText = "Enable Microphone and Speech Recognition for TensorLabsVoice in System Settings > Privacy & Security."
+        } else if !microphoneGranted {
+            alert.informativeText = "Enable Microphone for TensorLabsVoice in System Settings > Privacy & Security > Microphone."
+        } else {
+            alert.informativeText = "Enable Speech Recognition for TensorLabsVoice in System Settings > Privacy & Security > Speech Recognition."
+        }
+        alert.addButton(withTitle: "Open Privacy Settings")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let targetPane = !microphoneGranted ? "Privacy_Microphone" : "Privacy_SpeechRecognition"
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(targetPane)") {
+                NSWorkspace.shared.open(url)
+            }
         }
     }
 
@@ -543,16 +636,21 @@ final class AssistantController {
         guard captureTask == nil, !isCapturing else { return }
 
         captureTask = Task { @MainActor in
+            defer {
+                completeInteraction()
+            }
+
             guard await prepareIfNeeded() else {
-                captureTask = nil
                 return
             }
 
             speechSynthesizer.stopSpeaking()
             isCapturing = true
+            interactionState = .listening
+            overlayController.updateStatus(interactionState.overlayStatus)
             overlayController.updateTranscript("Listening...")
             overlayController.show()
-            let startedAt = Date()
+            var sessionMetrics = VoiceSessionMetrics()
 
             audioCaptureService.onLevelUpdate = { [weak self] level in
                 Task { @MainActor [weak self] in
@@ -567,8 +665,17 @@ final class AssistantController {
                 var latestPartial = ""
 
                 for try await event in engine.transcribe(audioStream: stream) {
+                    if Task.isCancelled {
+                        sessionMetrics.markInterrupted()
+                        metricsLogger.log(event: "assistant_capture_interrupted", metadata: sessionMetrics.metadata(additional: [
+                            "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
+                        ]))
+                        return
+                    }
+
                     switch event {
                     case let .partial(text):
+                        sessionMetrics.markFirstPartial()
                         latestPartial = text
                         overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial))
                     case let .final(text):
@@ -581,47 +688,106 @@ final class AssistantController {
                     }
                 }
 
+                sessionMetrics.markTranscriptionFinished()
                 let finalText = renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial)
                 let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
+                sessionMetrics.markPostProcessingFinished()
 
                 guard !normalized.isEmpty else {
-                    metricsLogger.log(event: "assistant_capture_complete", metadata: [
-                        "elapsed_seconds": String(format: "%.2f", Date().timeIntervalSince(startedAt)),
+                    metricsLogger.log(event: "assistant_capture_complete", metadata: sessionMetrics.metadata(additional: [
                         "heard_text": "",
                         "reply_text": "",
-                    ])
+                        "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
+                    ]))
                     return
                 }
 
+                interactionState = .thinking
+                overlayController.updateStatus(interactionState.overlayStatus)
                 overlayController.updateTranscript("Thinking...")
+                sessionMetrics.markThinkingStarted()
                 let reply = await assistantBrain.reply(to: normalized)
-                overlayController.updateTranscript(reply)
-                await speechSynthesizer.speak(reply, language: .english)
+                sessionMetrics.markReplyReady()
 
-                metricsLogger.log(event: "assistant_capture_complete", metadata: [
-                    "elapsed_seconds": String(format: "%.2f", Date().timeIntervalSince(startedAt)),
+                if Task.isCancelled {
+                    sessionMetrics.markInterrupted()
+                    metricsLogger.log(event: "assistant_capture_interrupted", metadata: sessionMetrics.metadata(additional: [
+                        "heard_text": normalized,
+                        "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
+                    ]))
+                    return
+                }
+
+                interactionState = .speaking
+                overlayController.updateStatus(interactionState.overlayStatus)
+                overlayController.updateTranscript(reply)
+                sessionMetrics.markSpeechStarted()
+                await speechSynthesizer.speak(reply, language: responseLanguageProvider())
+
+                if Task.isCancelled {
+                    sessionMetrics.markInterrupted()
+                    metricsLogger.log(event: "assistant_capture_interrupted", metadata: sessionMetrics.metadata(additional: [
+                        "heard_text": normalized,
+                        "reply_text": reply,
+                        "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
+                    ]))
+                    return
+                }
+
+                sessionMetrics.markSpeechFinished()
+
+                metricsLogger.log(event: "assistant_capture_complete", metadata: sessionMetrics.metadata(additional: [
                     "heard_text": normalized,
                     "reply_text": reply,
                     "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
-                ])
+                ]))
             } catch {
-                metricsLogger.log(event: "assistant_capture_failed", metadata: [
-                    "error": error.localizedDescription,
-                ])
+                if Task.isCancelled {
+                    var sessionMetrics = VoiceSessionMetrics()
+                    sessionMetrics.markInterrupted()
+                    metricsLogger.log(event: "assistant_capture_interrupted", metadata: sessionMetrics.metadata(additional: [
+                        "engine_used": (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id,
+                    ]))
+                } else {
+                    metricsLogger.log(event: "assistant_capture_failed", metadata: [
+                        "error": error.localizedDescription,
+                    ])
+                }
             }
-
-            isCapturing = false
-            audioCaptureService.onLevelUpdate = nil
-            overlayController.hide()
-            captureTask = nil
         }
     }
 
+    private func handleHotkeyPress() {
+        if interactionState == .speaking {
+            shouldRestartAfterCurrentInteraction = true
+            stopCapture(graceful: false)
+            return
+        }
+
+        startCapture()
+    }
+
+    private func handleHotkeyRelease() {
+        stopCapture(graceful: true)
+    }
+
     private func stopCapture(graceful: Bool) {
-        guard isCapturing else { return }
+        let isAssistantBusy = isCapturing || interactionState == .thinking || interactionState == .speaking
+        guard isAssistantBusy else { return }
+
+        if graceful {
+            guard isCapturing else { return }
+            audioCaptureService.stopCapture()
+            audioCaptureService.onLevelUpdate = nil
+            isCapturing = false
+            interactionState = .transcribing
+            overlayController.updateStatus(interactionState.overlayStatus)
+            return
+        }
+
         audioCaptureService.stopCapture()
         audioCaptureService.onLevelUpdate = nil
-
+        speechSynthesizer.stopSpeaking()
         if !graceful {
             overlayController.hide()
             Task { @MainActor in
@@ -633,6 +799,20 @@ final class AssistantController {
             captureTask?.cancel()
             captureTask = nil
             isCapturing = false
+            interactionState = .idle
+        }
+    }
+
+    private func completeInteraction() {
+        isCapturing = false
+        audioCaptureService.onLevelUpdate = nil
+        overlayController.hide()
+        captureTask = nil
+        interactionState = .idle
+
+        if shouldRestartAfterCurrentInteraction, isEnabled {
+            shouldRestartAfterCurrentInteraction = false
+            startCapture()
         }
     }
 

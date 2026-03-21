@@ -29,7 +29,8 @@ struct PostProcessor {
             return collapsedWhitespace
         }
 
-        let sentence = ensureSentencePunctuation(collapsedWhitespace)
+        let paragraphAware = ensureParagraphBreakPunctuation(collapsedWhitespace)
+        let sentence = ensureSentencePunctuation(paragraphAware)
         return capitalizeSentences(sentence)
     }
 
@@ -219,6 +220,14 @@ struct PostProcessor {
             return text
         }
         return text + "."
+    }
+
+    private func ensureParagraphBreakPunctuation(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: #"([^\s.!?])\n\n"#,
+            with: "$1.\n\n",
+            options: .regularExpression
+        )
     }
 
     private func capitalizeSentences(_ text: String) -> String {
