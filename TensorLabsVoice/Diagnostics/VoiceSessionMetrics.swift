@@ -7,11 +7,15 @@ struct VoiceSessionMetrics {
     private(set) var transcriptionFinishedAt: Date?
     private(set) var postProcessingFinishedAt: Date?
     private(set) var insertionFinishedAt: Date?
+    private(set) var firstVisibleTextAt: Date?
     private(set) var thinkingStartedAt: Date?
     private(set) var replyReadyAt: Date?
     private(set) var speechStartedAt: Date?
     private(set) var speechFinishedAt: Date?
     private(set) var interruptedAt: Date?
+    private(set) var transcriptRevisionCount: Int = 0
+    private(set) var stableWordPromotions: Int = 0
+    private(set) var maxVolatileWordCount: Int = 0
 
     init(startedAt: Date = Date()) {
         self.startedAt = startedAt
@@ -25,6 +29,12 @@ struct VoiceSessionMetrics {
 
     mutating func markTranscriptionFinished(at date: Date = Date()) {
         transcriptionFinishedAt = date
+    }
+
+    mutating func markFirstVisibleText(at date: Date = Date()) {
+        if firstVisibleTextAt == nil {
+            firstVisibleTextAt = date
+        }
     }
 
     mutating func markPostProcessingFinished(at date: Date = Date()) {
@@ -57,6 +67,12 @@ struct VoiceSessionMetrics {
         }
     }
 
+    mutating func recordTranscriptStabilization(_ snapshot: TranscriptStabilizer.Snapshot) {
+        transcriptRevisionCount = max(transcriptRevisionCount, snapshot.revisionCount)
+        stableWordPromotions = max(stableWordPromotions, snapshot.stablePromotions)
+        maxVolatileWordCount = max(maxVolatileWordCount, snapshot.maxVolatileWordCount)
+    }
+
     func metadata(
         endedAt: Date = Date(),
         additional: [String: String] = [:]
@@ -66,6 +82,10 @@ struct VoiceSessionMetrics {
 
         if let firstPartialAt {
             payload["first_partial_ms"] = durationString(from: startedAt, to: firstPartialAt)
+        }
+
+        if let firstVisibleTextAt {
+            payload["first_visible_text_ms"] = durationString(from: startedAt, to: firstVisibleTextAt)
         }
 
         if let transcriptionFinishedAt {
@@ -99,6 +119,10 @@ struct VoiceSessionMetrics {
         if interruptedAt != nil {
             payload["interrupted"] = "true"
         }
+
+        payload["transcript_revision_count"] = "\(transcriptRevisionCount)"
+        payload["stable_word_promotions"] = "\(stableWordPromotions)"
+        payload["max_volatile_word_count"] = "\(maxVolatileWordCount)"
 
         return payload
     }

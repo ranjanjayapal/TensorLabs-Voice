@@ -75,7 +75,7 @@ final class AudioCaptureService {
         }
 
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 512, format: format) { [weak self] buffer, _ in
             guard let self else { return }
             let values = self.toMono16kFloat(buffer: buffer)
             let level = self.calculateRMS(values)

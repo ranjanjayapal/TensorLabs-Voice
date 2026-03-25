@@ -9,19 +9,23 @@ final class DictationController {
     private let hotkeyService: GlobalHotkeyService
     private let textInsertionService: TextInsertionService
     private let postProcessor: PostProcessor
+    private let liveTranscriptFormatter: LiveTranscriptFormatter
     private let metricsLogger: LocalMetricsLogger
     private let overlayController: ListeningOverlayController
     private let permissionService: PermissionService
     private let hotkeyProvider: () -> HotkeyShortcut
+    private let sessionModeProvider: () -> DictationSessionMode
     private let postProcessorOptionsProvider: () -> PostProcessor.Options
     private let preparationKeyProvider: () -> String
     private let insertionModeProvider: () -> InsertionMode
+    private let liveTextUpdatesProvider: () -> Bool
 
     private var captureTask: Task<Void, Never>?
     private var prepareTask: Task<Bool, Never>?
     private var isCapturing = false
     private var isPrepared = false
     private var lastPreparationKey: String?
+    private var hasShownAccessibilityGuidance = false
 
     private(set) var isEnabled = false
 
@@ -31,37 +35,45 @@ final class DictationController {
         hotkeyService: GlobalHotkeyService,
         textInsertionService: TextInsertionService,
         postProcessor: PostProcessor,
+        liveTranscriptFormatter: LiveTranscriptFormatter = LiveTranscriptFormatter(),
         metricsLogger: LocalMetricsLogger,
         overlayController: ListeningOverlayController,
         permissionService: PermissionService,
         hotkeyProvider: @escaping () -> HotkeyShortcut,
+        sessionModeProvider: @escaping () -> DictationSessionMode,
         postProcessorOptionsProvider: @escaping () -> PostProcessor.Options,
         preparationKeyProvider: @escaping () -> String,
-        insertionModeProvider: @escaping () -> InsertionMode
+        insertionModeProvider: @escaping () -> InsertionMode,
+        liveTextUpdatesProvider: @escaping () -> Bool
     ) {
         self.engine = engine
         self.audioCaptureService = audioCaptureService
         self.hotkeyService = hotkeyService
         self.textInsertionService = textInsertionService
         self.postProcessor = postProcessor
+        self.liveTranscriptFormatter = liveTranscriptFormatter
         self.metricsLogger = metricsLogger
         self.overlayController = overlayController
         self.permissionService = permissionService
         self.hotkeyProvider = hotkeyProvider
+        self.sessionModeProvider = sessionModeProvider
         self.postProcessorOptionsProvider = postProcessorOptionsProvider
         self.preparationKeyProvider = preparationKeyProvider
         self.insertionModeProvider = insertionModeProvider
+        self.liveTextUpdatesProvider = liveTextUpdatesProvider
     }
 
     func setEnabled(_ enabled: Bool) async {
+        RuntimeTrace.mark("DictationController.setEnabled begin enabled=\(enabled)")
         if enabled {
             let status = await permissionService.requestRequiredPermissions(
                 requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
-                requiresAccessibility: true
+                requiresAccessibility: false
             )
+            RuntimeTrace.mark("DictationController permissions microphone=\(status.microphoneGranted) speech=\(status.speechGranted) accessibility=\(status.accessibilityGranted)")
             guard status.satisfiesRequirements(
                 requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
-                requiresAccessibility: true
+                requiresAccessibility: false
             ) else {
                 metricsLogger.log(event: "permissions_denied", metadata: [
                     "microphone": status.microphoneGranted ? "granted" : "denied",
@@ -71,20 +83,23 @@ final class DictationController {
                 showPermissionGuidance(
                     microphoneGranted: status.microphoneGranted,
                     speechGranted: status.speechGranted,
-                    accessibilityGranted: status.accessibilityGranted
+                    accessibilityGranted: true
                 )
                 isEnabled = false
+                RuntimeTrace.mark("DictationController.setEnabled denied")
                 return
             }
 
+            RuntimeTrace.mark("DictationController starting hotkey listener")
             hotkeyService.startListening(shortcut: hotkeyProvider(), onPress: { [weak self] in
-                self?.startCapture()
+                self?.handleHotkeyPress()
             }, onRelease: { [weak self] in
-                self?.stopCapture(graceful: true)
+                self?.handleHotkeyRelease()
             })
-            try? audioCaptureService.primeCapture()
 
             isEnabled = true
+            presentAccessibilityGuidanceIfNeeded()
+            RuntimeTrace.mark("DictationController.setEnabled success")
             return
         }
 
@@ -92,6 +107,7 @@ final class DictationController {
         stopCapture(graceful: false)
         audioCaptureService.shutdown()
         isEnabled = false
+        RuntimeTrace.mark("DictationController.setEnabled disabled")
     }
 
     func prewarmEngine() {
@@ -99,11 +115,10 @@ final class DictationController {
             let status = permissionService.currentStatus()
             guard status.satisfiesRequirements(
                 requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
-                requiresAccessibility: true
+                requiresAccessibility: false
             ) else {
                 return
             }
-            try? audioCaptureService.primeCapture()
             _ = await prepareIfNeeded()
         }
     }
@@ -144,6 +159,38 @@ final class DictationController {
                 targetPane = "Privacy_SpeechRecognition"
             }
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(targetPane)") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    private func presentAccessibilityGuidanceIfNeeded() {
+        guard !hasShownAccessibilityGuidance else { return }
+
+        let status = permissionService.currentStatus()
+        guard !status.accessibilityGranted else { return }
+        guard liveTextUpdatesProvider() || insertionModeProvider() == .accessibilityFirst else { return }
+
+        hasShownAccessibilityGuidance = true
+        metricsLogger.log(event: "dictation_accessibility_guidance_needed", metadata: [
+            "live_text_updates": liveTextUpdatesProvider() ? "true" : "false",
+            "insertion_mode": insertionModeProvider().rawValue,
+        ])
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            let trustedAfterPrompt = permissionService.promptForAccessibilityPermission()
+            guard !trustedAfterPrompt else { return }
+
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "Enable Accessibility For Live Dictation"
+            alert.informativeText = "Speech recognition is working, but live text streaming into other apps needs Accessibility permission. macOS should have opened the Accessibility settings panel. Turn on TensorLabsVoice there, then come back and try dictation again."
+            alert.addButton(withTitle: "Open Accessibility Settings")
+            alert.addButton(withTitle: "Later")
+            if alert.runModal() == .alertFirstButtonReturn,
+               let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                 NSWorkspace.shared.open(url)
             }
         }
@@ -231,6 +278,10 @@ final class DictationController {
             }
 
             isCapturing = true
+            let targetProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            let liveTextSession = liveTextUpdatesProvider()
+                ? textInsertionService.beginLiveTextSession(mode: .accessibilityFirst)
+                : nil
             overlayController.updateStatus("Listening")
             overlayController.updateTranscript("Listening...")
             overlayController.show()
@@ -243,36 +294,149 @@ final class DictationController {
             let stream = audioCaptureService.startCaptureStream()
 
             do {
-                var finalizedSegments: [String] = []
-                var latestPartial = ""
-                for try await event in engine.transcribe(audioStream: stream) {
-                    switch event {
-                    case let .partial(text):
-                        sessionMetrics.markFirstPartial()
-                        latestPartial = text
-                        overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial))
-                    case let .final(text):
-                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty {
-                            finalizedSegments.append(trimmed)
+                var transcriptComposer = TranscriptComposer()
+                var transcriptStabilizer = TranscriptStabilizer()
+                var lastRenderedLiveText = ""
+                var focusMonitorTask: Task<Void, Never>?
+                var didLoseTextFocus = false
+
+                if let liveTextSession {
+                    focusMonitorTask = Task { @MainActor [weak self] in
+                        while !(Task.isCancelled) {
+                            try? await Task.sleep(nanoseconds: 180_000_000)
+                            switch liveTextSession.status() {
+                            case .active:
+                                continue
+                            case .focusLost:
+                                didLoseTextFocus = true
+                                self?.stopCapture(graceful: true)
+                                return
+                            case .unavailable:
+                                continue
+                            }
                         }
-                        latestPartial = ""
-                        overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: nil))
+                    }
+                }
+                defer {
+                    focusMonitorTask?.cancel()
+                }
+
+                for try await event in engine.transcribe(audioStream: stream) {
+                    let rawHypothesis: String
+                    let stabilization: TranscriptStabilizer.Snapshot
+                    let isFinalEvent: Bool
+                    switch event {
+                    case .partial:
+                        sessionMetrics.markFirstPartial()
+                        transcriptComposer.apply(event)
+                        rawHypothesis = transcriptComposer.renderedText
+                        stabilization = transcriptStabilizer.update(with: rawHypothesis)
+                        isFinalEvent = false
+                    case .final:
+                        transcriptComposer.apply(event)
+                        rawHypothesis = transcriptComposer.renderedText
+                        stabilization = transcriptStabilizer.commit(rawHypothesis)
+                        isFinalEvent = true
+                    }
+
+                    sessionMetrics.recordTranscriptStabilization(stabilization)
+
+                    let compositionContext: LiveCompositionContext
+                    if let liveTextSession {
+                        switch liveTextSession.status() {
+                        case let .active(context):
+                            compositionContext = context
+                        case .focusLost:
+                            didLoseTextFocus = true
+                            stopCapture(graceful: true)
+                            compositionContext = LiveCompositionContext()
+                        case .unavailable:
+                            compositionContext = LiveCompositionContext()
+                        }
+                    } else {
+                        compositionContext = LiveCompositionContext()
+                    }
+
+                    let displayBasis = stabilization.displayText
+                    let liveTranscript = liveTranscriptFormatter.format(
+                        displayBasis,
+                        options: postProcessorOptionsProvider(),
+                        context: compositionContext
+                    )
+                    if !liveTranscript.isEmpty {
+                        sessionMetrics.markFirstVisibleText()
+                    }
+                    overlayController.updateTranscript(liveTranscript)
+                    if let liveTextSession, !liveTranscript.isEmpty, liveTranscript != lastRenderedLiveText {
+                        if liveTextSession.update(text: liveTranscript) {
+                            lastRenderedLiveText = liveTranscript
+                        }
+                    }
+
+                    if stabilization.revisionCount <= 5 || stabilization.revisionCount % 5 == 0 || isFinalEvent {
+                        metricsLogger.log(event: "dictation_live_update", metadata: [
+                            "revision_count": "\(stabilization.revisionCount)",
+                            "stable_word_count": "\(stabilization.stableWordCount)",
+                            "volatile_word_count": "\(stabilization.volatileWordCount)",
+                            "display_characters": "\(liveTranscript.count)",
+                            "mid_sentence": compositionContext.isMidSentence ? "true" : "false",
+                            "has_continuation_suffix": compositionContext.hasContinuationSuffix ? "true" : "false",
+                            "is_final_event": isFinalEvent ? "true" : "false",
+                        ])
                     }
                 }
 
                 sessionMetrics.markTranscriptionFinished()
-                let finalText = renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial)
-                let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
+                let finalText = transcriptComposer.finalTranscript
+                let finalContext: LiveCompositionContext
+                if let liveTextSession {
+                    switch liveTextSession.status() {
+                    case let .active(context):
+                        finalContext = context
+                    case .focusLost, .unavailable:
+                        finalContext = LiveCompositionContext()
+                    }
+                } else {
+                    finalContext = LiveCompositionContext()
+                }
+
+                let normalized = postProcessor.normalize(
+                    finalText,
+                    options: postProcessorOptionsProvider(),
+                    context: finalContext
+                )
                 sessionMetrics.markPostProcessingFinished()
                 var insertionSucceeded = false
+                var insertionMethod = "none"
                 if !normalized.isEmpty {
                     overlayController.updateStatus("Inserting")
                     try? await Task.sleep(nanoseconds: 50_000_000)
-                    insertionSucceeded = textInsertionService.insertText(
-                        normalized,
-                        mode: insertionModeProvider()
-                    )
+                    if let liveTextSession {
+                        insertionSucceeded = liveTextSession.finalize(text: normalized)
+                        switch liveTextSession.transport {
+                        case .accessibility:
+                            insertionMethod = insertionSucceeded ? "live_accessibility" : "live_accessibility_failed"
+                        case .keyboard:
+                            insertionMethod = insertionSucceeded ? "live_keyboard" : "live_keyboard_failed"
+                        }
+                    } else {
+                        let result = textInsertionService.insertText(
+                            normalized,
+                            mode: insertionModeProvider(),
+                            preferredProcessIdentifier: targetProcessIdentifier
+                        )
+                        switch result {
+                        case .accessibility:
+                            insertionSucceeded = true
+                            insertionMethod = "accessibility"
+                        case .pasteboard:
+                            insertionSucceeded = true
+                            insertionMethod = "pasteboard"
+                        case .failed:
+                            insertionSucceeded = false
+                            insertionMethod = "failed"
+                        }
+                    }
                 }
                 sessionMetrics.markInsertionFinished()
 
@@ -284,6 +448,9 @@ final class DictationController {
                     "inserted": insertionSucceeded ? "true" : "false",
                     "engine_used": engineUsed,
                     "fallback_used": fallbackUsed ? "true" : "false",
+                    "focus_lost_stop": didLoseTextFocus ? "true" : "false",
+                    "insertion_method": insertionMethod,
+                    "live_text_session": liveTextSession == nil ? "false" : "true",
                 ]))
             } catch {
                 if Task.isCancelled {
@@ -295,6 +462,24 @@ final class DictationController {
                 }
             }
         }
+    }
+
+    private func handleHotkeyPress() {
+        if sessionModeProvider() == .continuous {
+            if isCapturing || captureTask != nil {
+                stopCapture(graceful: true)
+            } else {
+                startCapture()
+            }
+            return
+        }
+
+        startCapture()
+    }
+
+    private func handleHotkeyRelease() {
+        guard sessionModeProvider() == .pushToTalk else { return }
+        stopCapture(graceful: true)
     }
 
     private func stopCapture(graceful: Bool) {
@@ -322,17 +507,6 @@ final class DictationController {
         }
     }
 
-    private func renderTranscript(finalizedSegments: [String], partial: String?) -> String {
-        let partialParts: [String]
-        if let partial {
-            let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-            partialParts = trimmed.isEmpty ? [] : [trimmed]
-        } else {
-            partialParts = []
-        }
-        let parts = finalizedSegments + partialParts
-        return parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }
 
 protocol AssistantBrain: Sendable {
@@ -543,7 +717,6 @@ final class AssistantController {
             }, onRelease: { [weak self] in
                 self?.handleHotkeyRelease()
             })
-            try? audioCaptureService.primeCapture()
 
             isEnabled = true
             return
@@ -567,7 +740,6 @@ final class AssistantController {
             ) else {
                 return
             }
-            try? audioCaptureService.primeCapture()
             _ = await prepareIfNeeded()
         }
     }
@@ -661,8 +833,7 @@ final class AssistantController {
             let stream = audioCaptureService.startCaptureStream()
 
             do {
-                var finalizedSegments: [String] = []
-                var latestPartial = ""
+                var transcriptComposer = TranscriptComposer()
 
                 for try await event in engine.transcribe(audioStream: stream) {
                     if Task.isCancelled {
@@ -674,22 +845,18 @@ final class AssistantController {
                     }
 
                     switch event {
-                    case let .partial(text):
+                    case .partial:
                         sessionMetrics.markFirstPartial()
-                        latestPartial = text
-                        overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial))
-                    case let .final(text):
-                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !trimmed.isEmpty {
-                            finalizedSegments.append(trimmed)
-                        }
-                        latestPartial = ""
-                        overlayController.updateTranscript(renderTranscript(finalizedSegments: finalizedSegments, partial: nil))
+                        transcriptComposer.apply(event)
+                        overlayController.updateTranscript(transcriptComposer.renderedText)
+                    case .final:
+                        transcriptComposer.apply(event)
+                        overlayController.updateTranscript(transcriptComposer.renderedText)
                     }
                 }
 
                 sessionMetrics.markTranscriptionFinished()
-                let finalText = renderTranscript(finalizedSegments: finalizedSegments, partial: latestPartial)
+                let finalText = transcriptComposer.finalTranscript
                 let normalized = postProcessor.normalize(finalText, options: postProcessorOptionsProvider())
                 sessionMetrics.markPostProcessingFinished()
 
@@ -816,15 +983,4 @@ final class AssistantController {
         }
     }
 
-    private func renderTranscript(finalizedSegments: [String], partial: String?) -> String {
-        let partialParts: [String]
-        if let partial {
-            let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
-            partialParts = trimmed.isEmpty ? [] : [trimmed]
-        } else {
-            partialParts = []
-        }
-        let parts = finalizedSegments + partialParts
-        return parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

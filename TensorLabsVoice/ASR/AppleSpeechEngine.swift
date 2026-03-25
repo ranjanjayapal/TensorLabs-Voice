@@ -58,22 +58,26 @@ final class AppleSpeechEngine: ASREngine {
                             }
 
                             if result.isFinal {
-                                continuation.yield(.final(text))
+                                continuation.yield(.final(text, scope: .fullTranscript))
                                 continuation.finish()
-                                self?.cleanupRecognition()
+                                Task { @MainActor in
+                                    self?.cleanupRecognition()
+                                }
                             } else {
-                                continuation.yield(.partial(text))
+                                continuation.yield(.partial(text, scope: .fullTranscript))
                             }
                         }
 
                         if let error {
                             if !lastPartial.isEmpty {
-                                continuation.yield(.final(lastPartial))
+                                continuation.yield(.final(lastPartial, scope: .fullTranscript))
                                 continuation.finish()
                             } else {
                                 continuation.finish(throwing: error)
                             }
-                            self?.cleanupRecognition()
+                            Task { @MainActor in
+                                self?.cleanupRecognition()
+                            }
                         }
                     }
 
@@ -104,7 +108,9 @@ final class AppleSpeechEngine: ASREngine {
         case .notDetermined:
             return await withCheckedContinuation { continuation in
                 SFSpeechRecognizer.requestAuthorization { status in
-                    continuation.resume(returning: status == .authorized)
+                    Task { @MainActor in
+                        continuation.resume(returning: status == .authorized)
+                    }
                 }
             }
         default:

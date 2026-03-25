@@ -1,8 +1,13 @@
 import Foundation
 
+enum ASRTextScope: Equatable {
+    case currentSegment
+    case fullTranscript
+}
+
 enum ASREvent: Equatable {
-    case partial(String)
-    case final(String)
+    case partial(String, scope: ASRTextScope)
+    case final(String, scope: ASRTextScope)
 }
 
 @MainActor
@@ -19,11 +24,11 @@ struct StreamingSegmentationConfig {
     var onsetThreshold: Float = 0.012
     var offsetThreshold: Float = 0.006
     var minSpeechDuration: Float = 0.12
-    var minSilenceDuration: Float = 0.42
+    var minSilenceDuration: Float = 0.72
     var preSpeechPadding: Float = 0.22
-    var partialResultInterval: Float = 0.9
+    var partialResultInterval: Float = 0.35
     var maxSegmentDuration: Float = 12.0
-    var minSegmentDurationBeforeSplit: Float = 0.85
+    var minSegmentDurationBeforeSplit: Float = 1.2
     var emitPartialResults = true
 
     static let `default` = StreamingSegmentationConfig()
@@ -78,7 +83,7 @@ final class StreamingSegmentTranscriber: @unchecked Sendable {
                     guard !text.isEmpty else { return }
                     finalizedSegments.append(text)
                     emittedAnyTranscript = true
-                    continuation.yield(.final(text))
+                    continuation.yield(.final(text, scope: .currentSegment))
                 }
 
                 func maybeEmitPartial(startSample: Int, endSample: Int) async throws {
@@ -87,7 +92,7 @@ final class StreamingSegmentTranscriber: @unchecked Sendable {
                     guard elapsed >= config.partialResultInterval else { return }
                     let partial = try await segmentText(from: startSample, to: endSample)
                     guard !partial.isEmpty else { return }
-                    continuation.yield(.partial(partial))
+                    continuation.yield(.partial(partial, scope: .currentSegment))
                     lastPartialSample = endSample
                 }
 
@@ -157,13 +162,13 @@ final class StreamingSegmentTranscriber: @unchecked Sendable {
                     switch state {
                     case .idle:
                         if !emittedAnyTranscript {
-                            continuation.yield(.final(""))
+                            continuation.yield(.final("", scope: .currentSegment))
                         }
                     case .pendingSpeech(let startSample):
                         if speechDuration(from: startSample, to: streamEndSample) >= config.minSpeechDuration {
                             try await emitFinal(startSample: startSample, endSample: streamEndSample)
                         } else if !emittedAnyTranscript {
-                            continuation.yield(.final(""))
+                            continuation.yield(.final("", scope: .currentSegment))
                         }
                     case .speech(let startSample):
                         try await emitFinal(startSample: startSample, endSample: streamEndSample)

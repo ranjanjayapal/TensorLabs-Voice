@@ -17,10 +17,11 @@ final class WhisperKitEngine: ASREngine {
     private var preparedModelName: String?
     private let streamingTranscriber = StreamingSegmentTranscriber(
         config: StreamingSegmentationConfig(
-            minSilenceDuration: 0.48,
-            partialResultInterval: 1.2,
+            minSilenceDuration: 0.9,
+            partialResultInterval: 0.45,
             maxSegmentDuration: 14.0,
-            emitPartialResults: false
+            minSegmentDurationBeforeSplit: 1.35,
+            emitPartialResults: true
         )
     )
 

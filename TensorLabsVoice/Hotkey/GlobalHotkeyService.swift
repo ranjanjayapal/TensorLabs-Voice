@@ -13,6 +13,7 @@ final class GlobalHotkeyService {
         onPress: @escaping () -> Void,
         onRelease: @escaping () -> Void
     ) {
+        RuntimeTrace.mark("GlobalHotkeyService.startListening begin")
         stopListening()
 
         self.onPress = onPress
@@ -42,11 +43,13 @@ final class GlobalHotkeyService {
         )
 
         guard handlerStatus == noErr else {
+            RuntimeTrace.mark("GlobalHotkeyService InstallEventHandler failed status=\(handlerStatus)")
             return
         }
+        RuntimeTrace.mark("GlobalHotkeyService InstallEventHandler succeeded")
 
         let hotKeyID = EventHotKeyID(signature: fourCharCode(from: "TLVH"), id: 1)
-        RegisterEventHotKey(
+        let registerStatus = RegisterEventHotKey(
             shortcut.key.carbonKeyCode,
             shortcut.carbonModifiers,
             hotKeyID,
@@ -54,9 +57,11 @@ final class GlobalHotkeyService {
             0,
             &hotkeyRef
         )
+        RuntimeTrace.mark("GlobalHotkeyService RegisterEventHotKey status=\(registerStatus)")
     }
 
     func stopListening() {
+        RuntimeTrace.mark("GlobalHotkeyService.stopListening begin")
         if let hotkeyRef {
             UnregisterEventHotKey(hotkeyRef)
         }
@@ -69,6 +74,7 @@ final class GlobalHotkeyService {
         eventHandlerRef = nil
         onPress = nil
         onRelease = nil
+        RuntimeTrace.mark("GlobalHotkeyService.stopListening end")
     }
 
     private func handleHotkeyEventKind(_ kind: UInt32) {

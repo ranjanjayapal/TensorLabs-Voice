@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let assistantHotkeyService = GlobalHotkeyService()
         let textInsertionService = TextInsertionService()
         let postProcessor = PostProcessor()
+        let liveTranscriptFormatter = LiveTranscriptFormatter()
         let metricsLogger = LocalMetricsLogger()
         let overlayController = ListeningOverlayController()
         let permissionService = PermissionService()
@@ -84,18 +85,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appleFallback = AppleSpeechEngine(languageProvider: { [weak self] in
             self?.settingsStore.transcriptionLanguage ?? .auto
         })
-        let asrEngine: ASREngine = FallbackASREngine(primary: preferredLocalEngine, fallback: appleFallback)
+        let appleRealtime = AppleSpeechEngine(languageProvider: { [weak self] in
+            self?.settingsStore.transcriptionLanguage ?? .auto
+        })
+        let dictationEngine: ASREngine = HybridStreamingASREngine(
+            realtimeEngine: appleRealtime,
+            finalizationEngine: preferredLocalEngine,
+            metricsLogger: metricsLogger
+        )
+        let assistantEngine: ASREngine = FallbackASREngine(primary: preferredLocalEngine, fallback: appleFallback)
         let dictationController = DictationController(
-            engine: asrEngine,
+            engine: dictationEngine,
             audioCaptureService: audioCaptureService,
             hotkeyService: hotkeyService,
             textInsertionService: textInsertionService,
             postProcessor: postProcessor,
+            liveTranscriptFormatter: liveTranscriptFormatter,
             metricsLogger: metricsLogger,
             overlayController: overlayController,
             permissionService: permissionService,
             hotkeyProvider: { [weak self] in
                 self?.settingsStore.hotkeyShortcut ?? .default
+            },
+            sessionModeProvider: { [weak self] in
+                self?.settingsStore.dictationSessionMode ?? .pushToTalk
             },
             postProcessorOptionsProvider: { [weak self] in
                 guard let self else { return .default }
@@ -112,10 +125,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             insertionModeProvider: { [weak self] in
                 self?.settingsStore.insertionMode ?? .accessibilityFirst
+            },
+            liveTextUpdatesProvider: { [weak self] in
+                self?.settingsStore.enableLiveTextUpdates ?? true
             }
         )
         let assistantController = AssistantController(
-            engine: asrEngine,
+            engine: assistantEngine,
             audioCaptureService: assistantAudioCaptureService,
             hotkeyService: assistantHotkeyService,
             postProcessor: postProcessor,
@@ -150,28 +166,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             assistantController: assistantController,
             settingsStore: settingsStore
         )
-        menuBarController?.enableSelectedModeOnLaunch()
-        if settingsStore.appMode == .assistant {
-            assistantController.prewarmEngine()
-        } else {
-            dictationController.prewarmEngine()
-        }
 
-        // Reflect actual system login-item status in settings at launch.
-        settingsStore.launchAtLogin = launchAtLoginService.isEnabled()
-        settingsStore.launchAtLoginStatusText = settingsStore.launchAtLogin ? "Enabled" : "Disabled"
-
-        settingsStore.$launchAtLogin
-            .dropFirst()
-            .sink { [weak self] enabled in
-                guard let self else { return }
-                if !self.launchAtLoginService.setEnabled(enabled) {
-                    // Revert to actual state if registration fails.
-                    self.settingsStore.launchAtLogin = self.launchAtLoginService.isEnabled()
-                }
-                self.settingsStore.launchAtLoginStatusText = self.settingsStore.launchAtLogin ? "Enabled" : "Disabled"
-            }
-            .store(in: &cancellables)
+        // Keep launch-at-login wiring disabled while stabilizing startup behavior.
+        settingsStore.launchAtLoginStatusText = "Unavailable during startup debugging"
 
         settingsStore.$appMode
             .dropFirst()
@@ -236,6 +233,17 @@ struct SettingsView: View {
                     Text("Accessibility first").tag(InsertionMode.accessibilityFirst)
                     Text("Pasteboard fallback").tag(InsertionMode.pasteboardFirst)
                 }
+
+                Picker("Dictation session", selection: $settings.dictationSessionMode) {
+                    Text("Push to talk").tag(DictationSessionMode.pushToTalk)
+                    Text("Continuous live").tag(DictationSessionMode.continuous)
+                }
+
+                Toggle("Enable live text updates", isOn: $settings.enableLiveTextUpdates)
+
+                Text("Continuous live mode keeps the mic open until you press the hotkey again. Live text updates work best in standard text fields with Accessibility support.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                 Picker("Transcription language", selection: $settings.transcriptionLanguage) {
                     Text("Auto detect").tag(TranscriptionLanguage.auto)

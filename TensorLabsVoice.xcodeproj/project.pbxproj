@@ -16,26 +16,32 @@
 		3EDEDF48C6EB9DF772110DE9 /* ParakeetASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 884756BD6C0F95A1EBF97C64 /* ParakeetASREngine.swift */; };
 		3FDBF502BD7564993277337D /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304C2D6FD7D2DD9F89FB2572 /* AudioCaptureService.swift */; };
 		40E7BB46D6E86A4D553D61E7 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1F7C46F53B3567E062A51773 /* WhisperKit */; };
+		469DAAB6A7B7B2123F9BE749 /* CompositionContextAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F21CE6A20155C127E945CB /* CompositionContextAnalyzer.swift */; };
 		4AA2F21DEF7C6816BB846B56 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D0D60F959104EEB1B384DA45 /* Assets.xcassets */; };
 		4FEAE1DC894CC6ECCDB741CF /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EBD1F9092A63962C5E5C4F7 /* MenuBarController.swift */; };
+		53AF74576C53A24658BF4237 /* HybridStreamingASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBD6F7E6E88E47F3D5F1BD5C /* HybridStreamingASREngine.swift */; };
 		540BDCC4FBA71DE49D9ADFD1 /* HotkeyShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 837FEEC8C045F9ECC5BED23D /* HotkeyShortcut.swift */; };
+		63C57F582C279D75FA0F014E /* TranscriptComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6590D2BC06BECCC564FB569C /* TranscriptComposer.swift */; };
 		77CDFF328A3251FA38084C90 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6E73F160313042F388C194 /* SettingsStore.swift */; };
 		7A8E1B924F74C2E572EE8A95 /* WhisperKitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E2D189BE0598B3FE0F0297 /* WhisperKitEngine.swift */; };
 		7B9BCDD664EEEA07A2313305 /* PreferredLocalASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46A33ABBD532062431EF6781 /* PreferredLocalASREngine.swift */; };
+		A0A07B70A377544ABA6AA7AF /* TranscriptStabilizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F1B8EF9123ED99ED15BFE3 /* TranscriptStabilizer.swift */; };
 		A2033AA29BFB8CAFA9880359 /* ListeningOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0BF10188EE3F526AEBC49DE /* ListeningOverlayController.swift */; };
 		AD8327FE684E539F5EC81D8E /* TensorLabsVoiceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D4490612A334FE18B012B8 /* TensorLabsVoiceApp.swift */; };
 		B9D80CBD768329ED27174B97 /* ModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2D1D5D8060BA07D9C3C802 /* ModelManager.swift */; };
 		B9F14AF62C264778F082B9B7 /* FallbackASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D14709CB62033528A4EF8BE /* FallbackASREngine.swift */; };
 		BB100A7F20EEFB84E31DCC2B /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD04356FFABA95CFD403723E /* DictationController.swift */; };
 		BFC56903810C3BFF518A1F11 /* AppleSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AFCE7DD6BEB6CEAAC36486E /* AppleSpeechEngine.swift */; };
+		C227D5F7EF648DB29A0A2B59 /* LiveTranscriptFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05C66686FE946C389454FD73 /* LiveTranscriptFormatter.swift */; };
 		D5A6C678D9443114C2E6AB43 /* ParakeetASR in Frameworks */ = {isa = PBXBuildFile; productRef = 6962DCD0C4B84A6F185FE453 /* ParakeetASR */; };
 		D69285DF7410A226F7D09566 /* Qwen3ASREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B842E482B450C7564780A2 /* Qwen3ASREngine.swift */; };
+		E7B9901C38F5836E83CD9C85 /* VoiceSessionMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87506D30056EFFA25C5E2781 /* VoiceSessionMetrics.swift */; };
 		ED41288CB0F1896155CB5901 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287EDB5BB88B77E60B31392D /* LaunchAtLoginService.swift */; };
-		F0E4E6F49A2E4F8FA8C0D001 /* VoiceSessionMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5A4B0E1D3A4B8D9C2F7A11 /* VoiceSessionMetrics.swift */; };
 		F4F1C59EF5BDEDD7F6D53F39 /* LocalMetricsLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		05C66686FE946C389454FD73 /* LiveTranscriptFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTranscriptFormatter.swift; sourceTree = "<group>"; };
 		0F5C7E607EB302643CB1A010 /* PermissionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionService.swift; sourceTree = "<group>"; };
 		105DED966AB98898AF52CC8C /* TextInsertionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInsertionService.swift; sourceTree = "<group>"; };
 		1EBD1F9092A63962C5E5C4F7 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
@@ -44,11 +50,15 @@
 		3D14709CB62033528A4EF8BE /* FallbackASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FallbackASREngine.swift; sourceTree = "<group>"; };
 		46A33ABBD532062431EF6781 /* PreferredLocalASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferredLocalASREngine.swift; sourceTree = "<group>"; };
 		4A2D1D5D8060BA07D9C3C802 /* ModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelManager.swift; sourceTree = "<group>"; };
+		6590D2BC06BECCC564FB569C /* TranscriptComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptComposer.swift; sourceTree = "<group>"; };
+		76F1B8EF9123ED99ED15BFE3 /* TranscriptStabilizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptStabilizer.swift; sourceTree = "<group>"; };
 		78114F4EFC8068EC0D508FD0 /* ASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASREngine.swift; sourceTree = "<group>"; };
 		7AFCE7DD6BEB6CEAAC36486E /* AppleSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechEngine.swift; sourceTree = "<group>"; };
 		837FEEC8C045F9ECC5BED23D /* HotkeyShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyShortcut.swift; sourceTree = "<group>"; };
+		87506D30056EFFA25C5E2781 /* VoiceSessionMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionMetrics.swift; sourceTree = "<group>"; };
 		884756BD6C0F95A1EBF97C64 /* ParakeetASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParakeetASREngine.swift; sourceTree = "<group>"; };
 		91D4490612A334FE18B012B8 /* TensorLabsVoiceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TensorLabsVoiceApp.swift; sourceTree = "<group>"; };
+		91F21CE6A20155C127E945CB /* CompositionContextAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionContextAnalyzer.swift; sourceTree = "<group>"; };
 		98BECB390628746978D8F90A /* TensorLabsVoice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TensorLabsVoice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		99E2D189BE0598B3FE0F0297 /* WhisperKitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitEngine.swift; sourceTree = "<group>"; };
 		AD04356FFABA95CFD403723E /* DictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationController.swift; sourceTree = "<group>"; };
@@ -58,8 +68,8 @@
 		ED6E73F160313042F388C194 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		F0BF10188EE3F526AEBC49DE /* ListeningOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningOverlayController.swift; sourceTree = "<group>"; };
 		F7D3184835D1623D9491E4B7 /* PostProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostProcessor.swift; sourceTree = "<group>"; };
+		FBD6F7E6E88E47F3D5F1BD5C /* HybridStreamingASREngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HybridStreamingASREngine.swift; sourceTree = "<group>"; };
 		FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMetricsLogger.swift; sourceTree = "<group>"; };
-		6C5A4B0E1D3A4B8D9C2F7A11 /* VoiceSessionMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSessionMetrics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,9 +92,12 @@
 				7AFCE7DD6BEB6CEAAC36486E /* AppleSpeechEngine.swift */,
 				78114F4EFC8068EC0D508FD0 /* ASREngine.swift */,
 				3D14709CB62033528A4EF8BE /* FallbackASREngine.swift */,
+				FBD6F7E6E88E47F3D5F1BD5C /* HybridStreamingASREngine.swift */,
 				884756BD6C0F95A1EBF97C64 /* ParakeetASREngine.swift */,
 				46A33ABBD532062431EF6781 /* PreferredLocalASREngine.swift */,
 				E9B842E482B450C7564780A2 /* Qwen3ASREngine.swift */,
+				6590D2BC06BECCC564FB569C /* TranscriptComposer.swift */,
+				76F1B8EF9123ED99ED15BFE3 /* TranscriptStabilizer.swift */,
 				99E2D189BE0598B3FE0F0297 /* WhisperKitEngine.swift */,
 			);
 			path = ASR;
@@ -134,7 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				FDDFECAFC44A9C801EA06C1E /* LocalMetricsLogger.swift */,
-				6C5A4B0E1D3A4B8D9C2F7A11 /* VoiceSessionMetrics.swift */,
+				87506D30056EFFA25C5E2781 /* VoiceSessionMetrics.swift */,
 			);
 			path = Diagnostics;
 			sourceTree = "<group>";
@@ -189,6 +202,8 @@
 		F60C20908F6B960D4A8DD704 /* Text */ = {
 			isa = PBXGroup;
 			children = (
+				91F21CE6A20155C127E945CB /* CompositionContextAnalyzer.swift */,
+				05C66686FE946C389454FD73 /* LiveTranscriptFormatter.swift */,
 				F7D3184835D1623D9491E4B7 /* PostProcessor.swift */,
 			);
 			path = Text;
@@ -270,12 +285,15 @@
 				04FEB473081D634D89974E7D /* ASREngine.swift in Sources */,
 				BFC56903810C3BFF518A1F11 /* AppleSpeechEngine.swift in Sources */,
 				3FDBF502BD7564993277337D /* AudioCaptureService.swift in Sources */,
+				469DAAB6A7B7B2123F9BE749 /* CompositionContextAnalyzer.swift in Sources */,
 				BB100A7F20EEFB84E31DCC2B /* DictationController.swift in Sources */,
 				B9F14AF62C264778F082B9B7 /* FallbackASREngine.swift in Sources */,
 				087BB7ECA0FC075526B2B67E /* GlobalHotkeyService.swift in Sources */,
 				540BDCC4FBA71DE49D9ADFD1 /* HotkeyShortcut.swift in Sources */,
+				53AF74576C53A24658BF4237 /* HybridStreamingASREngine.swift in Sources */,
 				ED41288CB0F1896155CB5901 /* LaunchAtLoginService.swift in Sources */,
 				A2033AA29BFB8CAFA9880359 /* ListeningOverlayController.swift in Sources */,
+				C227D5F7EF648DB29A0A2B59 /* LiveTranscriptFormatter.swift in Sources */,
 				F4F1C59EF5BDEDD7F6D53F39 /* LocalMetricsLogger.swift in Sources */,
 				4FEAE1DC894CC6ECCDB741CF /* MenuBarController.swift in Sources */,
 				B9D80CBD768329ED27174B97 /* ModelManager.swift in Sources */,
@@ -287,7 +305,9 @@
 				77CDFF328A3251FA38084C90 /* SettingsStore.swift in Sources */,
 				AD8327FE684E539F5EC81D8E /* TensorLabsVoiceApp.swift in Sources */,
 				0A2D04BA579112D939CC4491 /* TextInsertionService.swift in Sources */,
-				F0E4E6F49A2E4F8FA8C0D001 /* VoiceSessionMetrics.swift in Sources */,
+				63C57F582C279D75FA0F014E /* TranscriptComposer.swift in Sources */,
+				A0A07B70A377544ABA6AA7AF /* TranscriptStabilizer.swift in Sources */,
+				E7B9901C38F5836E83CD9C85 /* VoiceSessionMetrics.swift in Sources */,
 				7A8E1B924F74C2E572EE8A95 /* WhisperKitEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -304,6 +324,8 @@
 				INFOPLIST_FILE = XcodeSupport/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TensorLabs Voice needs microphone access to capture your speech.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TensorLabs Voice needs speech recognition access to transcribe your speech when the Apple fallback engine is used.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -380,6 +402,8 @@
 				INFOPLIST_FILE = XcodeSupport/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TensorLabs Voice needs microphone access to capture your speech.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TensorLabs Voice needs speech recognition access to transcribe your speech when the Apple fallback engine is used.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

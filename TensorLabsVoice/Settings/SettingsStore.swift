@@ -12,6 +12,11 @@ enum InsertionMode: String, Codable {
     case pasteboardFirst
 }
 
+enum DictationSessionMode: String, Codable {
+    case pushToTalk
+    case continuous
+}
+
 @MainActor
 final class SettingsStore: ObservableObject {
     @Published var appMode: AppMode {
@@ -24,6 +29,10 @@ final class SettingsStore: ObservableObject {
 
     @Published var insertionMode: InsertionMode {
         didSet { defaults.set(insertionMode.rawValue, forKey: Keys.insertionMode) }
+    }
+
+    @Published var dictationSessionMode: DictationSessionMode {
+        didSet { defaults.set(dictationSessionMode.rawValue, forKey: Keys.dictationSessionMode) }
     }
 
     @Published var transcriptionLanguage: TranscriptionLanguage {
@@ -64,6 +73,10 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(enableSmartListFormatting, forKey: Keys.enableSmartListFormatting) }
     }
 
+    @Published var enableLiveTextUpdates: Bool {
+        didSet { defaults.set(enableLiveTextUpdates, forKey: Keys.enableLiveTextUpdates) }
+    }
+
     @Published var customWordReplacementsRaw: String {
         didSet { defaults.set(customWordReplacementsRaw, forKey: Keys.customWordReplacementsRaw) }
     }
@@ -75,6 +88,7 @@ final class SettingsStore: ObservableObject {
         static let dictationMode = "settings.dictationMode"
         static let legacyModelProfile = "settings.modelProfile"
         static let insertionMode = "settings.insertionMode"
+        static let dictationSessionMode = "settings.dictationSessionMode"
         static let transcriptionLanguage = "settings.transcriptionLanguage"
         static let enableDiagnostics = enableDiagnosticsDefaultsKey
         static let launchAtLogin = "settings.launchAtLogin"
@@ -84,6 +98,7 @@ final class SettingsStore: ObservableObject {
         static let hotkeyOption = "settings.hotkey.option"
         static let hotkeyControl = "settings.hotkey.control"
         static let enableSmartListFormatting = "settings.text.enableSmartListFormatting"
+        static let enableLiveTextUpdates = "settings.text.enableLiveTextUpdates"
         static let customWordReplacementsRaw = "settings.text.customWordReplacementsRaw"
     }
 
@@ -111,6 +126,9 @@ final class SettingsStore: ObservableObject {
         let insertionValue = defaults.string(forKey: Keys.insertionMode)
         insertionMode = InsertionMode(rawValue: insertionValue ?? "") ?? .accessibilityFirst
 
+        let sessionModeValue = defaults.string(forKey: Keys.dictationSessionMode)
+        dictationSessionMode = DictationSessionMode(rawValue: sessionModeValue ?? "") ?? .pushToTalk
+
         let languageValue = defaults.string(forKey: Keys.transcriptionLanguage)
         transcriptionLanguage = TranscriptionLanguage(rawValue: languageValue ?? "") ?? .auto
 
@@ -125,6 +143,7 @@ final class SettingsStore: ObservableObject {
         hotkeyOption = defaults.object(forKey: Keys.hotkeyOption) as? Bool ?? HotkeyShortcut.default.option
         hotkeyControl = defaults.object(forKey: Keys.hotkeyControl) as? Bool ?? HotkeyShortcut.default.control
         enableSmartListFormatting = defaults.object(forKey: Keys.enableSmartListFormatting) as? Bool ?? true
+        enableLiveTextUpdates = defaults.object(forKey: Keys.enableLiveTextUpdates) as? Bool ?? true
         customWordReplacementsRaw = defaults.string(forKey: Keys.customWordReplacementsRaw) ?? ""
     }
 

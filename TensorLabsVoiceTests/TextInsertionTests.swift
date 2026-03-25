@@ -12,7 +12,9 @@ final class TextInsertionTests: XCTestCase {
 
         XCTAssertEqual(store.dictationMode, .balanced)
         XCTAssertEqual(store.insertionMode, .accessibilityFirst)
+        XCTAssertEqual(store.dictationSessionMode, .pushToTalk)
         XCTAssertTrue(store.enableDiagnostics)
+        XCTAssertTrue(store.enableLiveTextUpdates)
         XCTAssertFalse(store.launchAtLogin)
     }
 }

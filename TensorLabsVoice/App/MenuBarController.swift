@@ -65,15 +65,18 @@ final class MenuBarController: NSObject {
     }
 
     @objc private func toggleMode() {
+        RuntimeTrace.mark("MenuBarController.toggleMode begin currentEnabled=\(currentModeEnabled) appMode=\(settingsStore.appMode.rawValue)")
         toggleItem.isEnabled = false
         let target = !currentModeEnabled
 
         Task { @MainActor in
+            RuntimeTrace.mark("MenuBarController.toggleMode task start target=\(target)")
             if settingsStore.appMode == .assistant {
                 await assistantController.setEnabled(target)
             } else {
                 await dictationController.setEnabled(target)
             }
+            RuntimeTrace.mark("MenuBarController.toggleMode task finished target=\(target)")
             refreshMenuState()
             toggleItem.isEnabled = true
         }

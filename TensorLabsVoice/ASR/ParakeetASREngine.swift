@@ -72,8 +72,10 @@ final class ParakeetASREngine: ASREngine {
 
         let modelBox = UncheckedSendableBox(model)
         let config = StreamingSegmentationConfig(
-            partialResultInterval: 0.75,
+            minSilenceDuration: 0.72,
+            partialResultInterval: 0.35,
             maxSegmentDuration: 10.0,
+            minSegmentDurationBeforeSplit: 1.2,
             emitPartialResults: true
         )
         let transcriber = StreamingSegmentTranscriber(config: config)

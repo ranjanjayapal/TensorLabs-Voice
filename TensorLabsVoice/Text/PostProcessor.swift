@@ -34,6 +34,45 @@ struct PostProcessor {
         return capitalizeSentences(sentence)
     }
 
+    func normalizeLive(_ text: String, options: Options = .default) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        if isBlankAudioArtifact(trimmed) { return "" }
+
+        let deartifacted = removeTranscriptionArtifacts(trimmed)
+        guard !deartifacted.isEmpty else { return "" }
+
+        let replacedWords = applyCustomWordReplacements(deartifacted, replacements: options.customWordReplacements)
+        let punctuatedWords = options.enableSpokenPunctuation ? applySpokenPunctuation(replacedWords) : replacedWords
+        return normalizeWhitespace(punctuatedWords)
+    }
+
+    func normalize(_ text: String, options: Options = .default, context: LiveCompositionContext) -> String {
+        let liveNormalized = normalizeLive(text, options: options)
+        guard !liveNormalized.isEmpty else { return "" }
+        let analysis = CompositionContextAnalyzer().analyze(context: context, dictatedText: liveNormalized)
+
+        if options.enableSmartListFormatting, let numberedList = convertSpokenNumberedList(liveNormalized) {
+            return numberedList
+        }
+
+        if !options.applyEnglishCasingAndPunctuation {
+            return liveNormalized
+        }
+
+        var output = liveNormalized
+        if analysis.shouldAppendTerminalPunctuation {
+            output = ensureParagraphBreakPunctuation(output)
+            output = ensureSentencePunctuation(output)
+        }
+
+        if analysis.shouldLowercaseLeadingWord {
+            return lowercaseLeadingLetter(output)
+        }
+
+        return capitalizeSentences(output)
+    }
+
     private func removeTranscriptionArtifacts(_ text: String) -> String {
         var output = text
         let artifacts = ["[BLANK_AUDIO]", "<|nospeech|>", "<|nocaptions|>"]
@@ -255,5 +294,13 @@ struct PostProcessor {
     private func capitalizeFirstLetter(_ text: String) -> String {
         guard let first = text.first else { return text }
         return first.uppercased() + text.dropFirst()
+    }
+
+    private func lowercaseLeadingLetter(_ text: String) -> String {
+        guard let firstLetterIndex = text.firstIndex(where: \.isLetter) else { return text }
+        let prefix = text[..<firstLetterIndex]
+        let lowered = String(text[firstLetterIndex]).lowercased()
+        let suffix = text[text.index(after: firstLetterIndex)...]
+        return String(prefix) + lowered + suffix
     }
 }
