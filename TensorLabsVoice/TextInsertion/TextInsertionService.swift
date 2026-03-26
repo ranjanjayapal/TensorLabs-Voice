@@ -59,7 +59,7 @@ final class TextInsertionService {
             case .accessibility:
                 return replaceTrackedRange(with: text)
             case .keyboard:
-                return replaceTypedText(with: text)
+                return replaceTypedTextWithPasteboard(text)
             }
         }
 
@@ -86,13 +86,16 @@ final class TextInsertionService {
                 let selectionMatchesTracked =
                     selectedRange.location == trackedRange.location &&
                     selectedRange.length == trackedRange.length
+                let trackedTextStillPresent =
+                    !lastRenderedText.isEmpty &&
+                    Self.text(in: currentValue, for: trackedRange) == lastRenderedText
 
-                if preservesOwnSelection, currentValue == lastKnownValue, (selectionCollapsedAtEnd || selectionMatchesTracked) {
+                if trackedTextStillPresent && (selectionCollapsedAtEnd || selectionMatchesTracked) {
                     // Preserve the existing dictated span when the host collapses the caret
                     // immediately after our own replacement.
                 } else if selectedRange.location != trackedRange.location || selectedRange.length != trackedRange.length {
                     trackedRange = selectedRange
-                } else if !currentValue.isEmpty, currentValue != lastKnownValue {
+                } else if !currentValue.isEmpty, currentValue != lastKnownValue, !trackedTextStillPresent {
                     trackedRange = selectedRange
                 }
 
@@ -116,25 +119,26 @@ final class TextInsertionService {
         private func replaceTrackedRange(with text: String) -> Bool {
             guard let target else { return false }
 
-            if setSelectedRange(trackedRange),
-               AXUIElementSetAttributeValue(target, kAXSelectedTextAttribute as CFString, text as CFTypeRef) == .success {
-                let length = (text as NSString).length
-                trackedRange = CFRange(location: trackedRange.location, length: length)
-                lastKnownValue = Self.readValue(from: target) ?? lastKnownValue
-                preservesOwnSelection = true
-                _ = setSelectedRange(trackedRange)
-                return true
-            }
-
             guard let currentValue = Self.readValue(from: target) ?? (!lastKnownValue.isEmpty ? lastKnownValue : nil),
                   let updatedValue = Self.replacing(range: trackedRange, in: currentValue, with: text),
                   AXUIElementSetAttributeValue(target, kAXValueAttribute as CFString, updatedValue as CFTypeRef) == .success
             else {
+                if setSelectedRange(trackedRange),
+                   AXUIElementSetAttributeValue(target, kAXSelectedTextAttribute as CFString, text as CFTypeRef) == .success {
+                    let length = (text as NSString).length
+                    trackedRange = CFRange(location: trackedRange.location, length: length)
+                    lastRenderedText = text
+                    lastKnownValue = Self.readValue(from: target) ?? lastKnownValue
+                    preservesOwnSelection = true
+                    _ = setSelectedRange(trackedRange)
+                    return true
+                }
                 return false
             }
 
             let insertedLength = (text as NSString).length
             trackedRange = CFRange(location: trackedRange.location, length: insertedLength)
+            lastRenderedText = text
             lastKnownValue = updatedValue
             preservesOwnSelection = true
             _ = setSelectedRange(trackedRange)
@@ -142,21 +146,23 @@ final class TextInsertionService {
         }
 
         private func replaceTypedText(with text: String) -> Bool {
-            guard let targetProcessIdentifier else { return false }
-            let prefixLength = text.commonPrefix(with: lastRenderedText).count
-            let charactersToDelete = lastRenderedText.count - prefixLength
-            let suffixToInsert = String(text.dropFirst(prefixLength))
+            guard Self.canSendKeyboardEvents(to: targetProcessIdentifier) else { return false }
+            let charactersToDelete = lastRenderedText.count
 
             if charactersToDelete > 0 {
                 guard Self.sendBackspaces(charactersToDelete, to: targetProcessIdentifier) else { return false }
             }
 
-            if !suffixToInsert.isEmpty {
-                guard Self.sendUnicodeText(suffixToInsert, to: targetProcessIdentifier) else { return false }
+            if !text.isEmpty {
+                guard Self.sendUnicodeText(text, to: targetProcessIdentifier) else { return false }
             }
 
             lastRenderedText = text
             return true
+        }
+
+        private func replaceTypedTextWithPasteboard(_ text: String) -> Bool {
+            replaceTypedText(with: text)
         }
 
         private func setSelectedRange(_ range: CFRange) -> Bool {
@@ -228,7 +234,18 @@ final class TextInsertionService {
             return updated
         }
 
-        private static func sendBackspaces(_ count: Int, to processIdentifier: pid_t) -> Bool {
+        fileprivate static func text(in value: String, for range: CFRange) -> String? {
+            let utf16Count = value.utf16.count
+            let start = max(0, min(range.location, utf16Count))
+            let end = max(start, min(range.location + range.length, utf16Count))
+            guard let stringRange = Range(NSRange(location: start, length: end - start), in: value) else {
+                return nil
+            }
+
+            return String(value[stringRange])
+        }
+
+        private static func sendBackspaces(_ count: Int, to processIdentifier: pid_t?) -> Bool {
             guard count > 0 else { return true }
             guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
 
@@ -238,29 +255,48 @@ final class TextInsertionService {
                 else {
                     return false
                 }
-                keyDown.postToPid(processIdentifier)
-                keyUp.postToPid(processIdentifier)
+                keyDown.flags = []
+                keyUp.flags = []
+                postKeyboardEvent(keyDown, to: processIdentifier)
+                postKeyboardEvent(keyUp, to: processIdentifier)
             }
 
             return true
         }
 
-        private static func sendUnicodeText(_ text: String, to processIdentifier: pid_t) -> Bool {
+        private static func sendUnicodeText(_ text: String, to processIdentifier: pid_t?) -> Bool {
             guard !text.isEmpty else { return true }
-            guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
+            for scalar in text.utf16 {
+                guard sendUnicodeScalar(scalar, to: processIdentifier) else { return false }
+            }
+            return true
+        }
 
-            let scalars = Array(text.utf16)
+        private static func sendUnicodeScalar(_ scalar: unichar, to processIdentifier: pid_t?) -> Bool {
+            guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
+            var payload = [scalar]
             guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
                   let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
             else {
                 return false
             }
 
-            keyDown.keyboardSetUnicodeString(stringLength: scalars.count, unicodeString: scalars)
-            keyUp.keyboardSetUnicodeString(stringLength: scalars.count, unicodeString: scalars)
-            keyDown.postToPid(processIdentifier)
-            keyUp.postToPid(processIdentifier)
+            keyDown.flags = []
+            keyUp.flags = []
+            keyDown.keyboardSetUnicodeString(stringLength: payload.count, unicodeString: &payload)
+            keyUp.keyboardSetUnicodeString(stringLength: payload.count, unicodeString: &payload)
+            postKeyboardEvent(keyDown, to: processIdentifier)
+            postKeyboardEvent(keyUp, to: processIdentifier)
             return true
+        }
+
+        private static func postKeyboardEvent(_ event: CGEvent, to processIdentifier: pid_t?) {
+            event.post(tap: .cghidEventTap)
+        }
+
+        private static func canSendKeyboardEvents(to processIdentifier: pid_t?) -> Bool {
+            guard let processIdentifier else { return true }
+            return NSWorkspace.shared.frontmostApplication?.processIdentifier == processIdentifier
         }
     }
 
@@ -281,8 +317,10 @@ final class TextInsertionService {
 
     func beginLiveTextSession(mode: InsertionMode) -> LiveTextSession? {
         let effectiveMode = preferredMode(for: mode)
-        guard effectiveMode == .accessibilityFirst else { return nil }
-        if let target = focusedElement(), supportsLiveRangeReplacement(target) {
+
+        if effectiveMode == .accessibilityFirst,
+           let target = focusedElement(),
+           supportsLiveRangeReplacement(target) {
             var selectedRange = CFRange(location: 0, length: 0)
             if readSelectedRange(from: target, into: &selectedRange) {
                 return LiveTextSession(target: target, trackedRange: selectedRange)
@@ -298,7 +336,12 @@ final class TextInsertionService {
 
     private func preferredMode(for configuredMode: InsertionMode) -> InsertionMode {
         guard configuredMode == .accessibilityFirst else { return configuredMode }
-        guard let bundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else {
+        let frontmostApplication = NSWorkspace.shared.frontmostApplication
+        guard !Self.prefersKeyboardInjection(for: frontmostApplication) else {
+            return .pasteboardFirst
+        }
+
+        guard let bundleIdentifier = frontmostApplication?.bundleIdentifier else {
             return configuredMode
         }
 
@@ -307,6 +350,25 @@ final class TextInsertionService {
         }
 
         return configuredMode
+    }
+
+    static func prefersKeyboardInjection(bundleIdentifier: String?, localizedName: String?) -> Bool {
+        if let bundleIdentifier, terminalBundleIdentifiers.contains(bundleIdentifier) {
+            return true
+        }
+
+        let normalizedBundleIdentifier = bundleIdentifier?.lowercased() ?? ""
+        let normalizedName = localizedName?.lowercased() ?? ""
+        return editorLikeAccessibilityBlacklist.contains(where: {
+            normalizedBundleIdentifier.contains($0) || normalizedName.contains($0)
+        })
+    }
+
+    private static func prefersKeyboardInjection(for application: NSRunningApplication?) -> Bool {
+        prefersKeyboardInjection(
+            bundleIdentifier: application?.bundleIdentifier,
+            localizedName: application?.localizedName
+        )
     }
 
     private func insertUsingAccessibility(_ text: String) -> Bool {
@@ -377,6 +439,10 @@ final class TextInsertionService {
     }
 
     private func insertUsingPasteboard(_ text: String, preferredProcessIdentifier: pid_t?) -> Bool {
+        guard preferredProcessIdentifier == nil || preferredProcessIdentifier == NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            return false
+        }
+
         let pasteboard = NSPasteboard.general
         let previousValue = pasteboard.string(forType: .string)
 
@@ -390,14 +456,8 @@ final class TextInsertionService {
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
         keyUp?.flags = .maskCommand
         guard let keyDown, let keyUp else { return false }
-
-        if let processIdentifier = preferredProcessIdentifier ?? NSWorkspace.shared.frontmostApplication?.processIdentifier {
-            keyDown.postToPid(processIdentifier)
-            keyUp.postToPid(processIdentifier)
-        } else {
-            keyDown.post(tap: .cghidEventTap)
-            keyUp.post(tap: .cghidEventTap)
-        }
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
 
         // Give the focused app a moment to consume Cmd+V before restoring clipboard.
         if let previousValue {
@@ -418,5 +478,10 @@ final class TextInsertionService {
         "dev.warp.Warp",
         "io.alacritty",
         "co.zeit.hyper",
+    ]
+
+    private static let editorLikeAccessibilityBlacklist: Set<String> = [
+        "codex",
+        "opencode",
     ]
 }

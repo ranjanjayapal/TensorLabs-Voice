@@ -2,6 +2,199 @@ import AppKit
 @preconcurrency import AVFoundation
 import Foundation
 
+struct LiveDictationAccumulator {
+    private(set) var committedText: String = ""
+    private(set) var activeText: String = ""
+
+    var renderedText: String {
+        join(committedText, deduplicatedVolatileText(activeText, against: committedText))
+    }
+
+    mutating func update(stableText: String, volatileText: String, isFinalEvent: Bool) -> String {
+        let stable = normalized(stableText)
+        let volatile = normalized(volatileText)
+        let previousActiveText = activeText
+        let previousRenderedText = renderedText
+
+        if !stable.isEmpty {
+            reconcileCommitted(with: stable, previousRenderedText: previousRenderedText)
+            activeText = deduplicatedVolatileText(activeText, against: committedText)
+        }
+
+        if shouldCommitActiveText(beforeReplacingWith: volatile, stableText: stable) {
+            replaceCommitted(with: join(committedText, activeText))
+            activeText = ""
+        }
+
+        activeText = deduplicatedVolatileText(volatile, against: committedText)
+
+        if isFinalEvent {
+            let finalCandidate = !activeText.isEmpty ? activeText : previousActiveText
+            if shouldCommitFinalCandidate(finalCandidate) {
+                replaceCommitted(with: join(committedText, finalCandidate))
+                activeText = ""
+            } else if !finalCandidate.isEmpty {
+                activeText = deduplicatedVolatileText(finalCandidate, against: committedText)
+            }
+        }
+
+        return renderedText
+    }
+
+    mutating func finalizeSession(with transcript: String) -> String {
+        replaceCommitted(with: normalized(transcript))
+        activeText = ""
+        return renderedText
+    }
+
+    private mutating func replaceCommitted(with text: String) {
+        guard !text.isEmpty else { return }
+        committedText = text
+    }
+
+    private mutating func reconcileCommitted(with incomingText: String, previousRenderedText: String) {
+        let incoming = normalized(incomingText)
+        guard !incoming.isEmpty else { return }
+
+        guard !committedText.isEmpty else {
+            committedText = incoming
+            return
+        }
+
+        let renderedWords = words(in: previousRenderedText)
+        let incomingWords = words(in: incoming)
+        let sharedRenderedPrefix = sharedWordPrefixCount(renderedWords, incomingWords)
+        if sharedRenderedPrefix >= 2 {
+            committedText = incoming
+            return
+        }
+
+        if incoming == committedText {
+            return
+        }
+
+        if incoming.hasPrefix(committedText) {
+            committedText = incoming
+            return
+        }
+
+        if committedText.hasPrefix(incoming) {
+            return
+        }
+
+        let existingWords = words(in: committedText)
+        let sharedPrefix = sharedWordPrefixCount(existingWords, incomingWords)
+        if sharedPrefix >= 2 {
+            committedText = incoming
+            return
+        }
+
+        committedText = merge(committedText, incoming)
+    }
+
+    private func shouldCommitActiveText(beforeReplacingWith incomingVolatile: String, stableText: String) -> Bool {
+        guard !activeText.isEmpty else { return false }
+        guard !incomingVolatile.isEmpty else { return false }
+
+        let current = normalized(activeText)
+        let incoming = normalized(incomingVolatile)
+        let stable = normalized(stableText)
+        guard !current.isEmpty else { return false }
+        guard current.last.map({ ".!?".contains($0) }) == true else {
+            return false
+        }
+
+        if !stable.isEmpty, stable != committedText {
+            return false
+        }
+
+        if incoming.hasPrefix(current) || current.hasPrefix(incoming) {
+            return false
+        }
+
+        let currentWords = words(in: current)
+        let incomingWords = words(in: incoming)
+        let overlap = largestWordOverlap(suffix: currentWords, prefix: incomingWords)
+        return overlap == 0
+    }
+
+    private func deduplicatedVolatileText(_ incomingVolatile: String, against committed: String) -> String {
+        let incoming = normalized(incomingVolatile)
+        let existing = normalized(committed)
+        guard !incoming.isEmpty, !existing.isEmpty else { return incoming }
+
+        let existingWords = words(in: existing)
+        let incomingWords = words(in: incoming)
+        let overlap = largestWordOverlap(suffix: existingWords, prefix: incomingWords)
+        if overlap == incomingWords.count {
+            return ""
+        }
+        guard overlap >= 2 else { return incoming }
+        return incomingWords.dropFirst(overlap).joined(separator: " ")
+    }
+
+    private func shouldCommitFinalCandidate(_ text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        let trimmed = normalized(text)
+        guard let last = trimmed.last else { return false }
+        return ".!?".contains(last)
+    }
+
+    private func merge(_ existing: String, _ incoming: String) -> String {
+        let existingWords = words(in: existing)
+        let incomingWords = words(in: incoming)
+        let overlap = largestWordOverlap(suffix: existingWords, prefix: incomingWords)
+
+        if overlap == incomingWords.count {
+            return existing
+        }
+
+        let appendedWords = incomingWords.dropFirst(overlap)
+        let appended = appendedWords.joined(separator: " ")
+        return join(existing, appended)
+    }
+
+    private func sharedWordPrefixCount(_ lhs: [String], _ rhs: [String]) -> Int {
+        zip(lhs, rhs).prefix { $0 == $1 }.count
+    }
+
+    private func largestWordOverlap(suffix: [String], prefix: [String]) -> Int {
+        let maxOverlap = min(suffix.count, prefix.count)
+        guard maxOverlap > 0 else { return 0 }
+
+        for candidate in stride(from: maxOverlap, through: 1, by: -1) {
+            if Array(suffix.suffix(candidate)) == Array(prefix.prefix(candidate)) {
+                return candidate
+            }
+        }
+
+        return 0
+    }
+
+    private func words(in text: String) -> [String] {
+        normalized(text)
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+    }
+
+    private func join(_ lhs: String, _ rhs: String) -> String {
+        switch (lhs.isEmpty, rhs.isEmpty) {
+        case (true, true):
+            return ""
+        case (true, false):
+            return rhs
+        case (false, true):
+            return lhs
+        case (false, false):
+            return lhs + " " + rhs
+        }
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 @MainActor
 final class DictationController {
     private let engine: ASREngine
@@ -14,7 +207,6 @@ final class DictationController {
     private let overlayController: ListeningOverlayController
     private let permissionService: PermissionService
     private let hotkeyProvider: () -> HotkeyShortcut
-    private let sessionModeProvider: () -> DictationSessionMode
     private let postProcessorOptionsProvider: () -> PostProcessor.Options
     private let preparationKeyProvider: () -> String
     private let insertionModeProvider: () -> InsertionMode
@@ -26,6 +218,15 @@ final class DictationController {
     private var isPrepared = false
     private var lastPreparationKey: String?
     private var hasShownAccessibilityGuidance = false
+    private var hotkeyHoldTask: Task<Void, Never>?
+    private var activeHotkeyMode: HotkeyMode = .idle
+
+    private enum HotkeyMode {
+        case idle
+        case pending
+        case continuous
+        case pushToTalk
+    }
 
     private(set) var isEnabled = false
 
@@ -40,7 +241,6 @@ final class DictationController {
         overlayController: ListeningOverlayController,
         permissionService: PermissionService,
         hotkeyProvider: @escaping () -> HotkeyShortcut,
-        sessionModeProvider: @escaping () -> DictationSessionMode,
         postProcessorOptionsProvider: @escaping () -> PostProcessor.Options,
         preparationKeyProvider: @escaping () -> String,
         insertionModeProvider: @escaping () -> InsertionMode,
@@ -56,7 +256,6 @@ final class DictationController {
         self.overlayController = overlayController
         self.permissionService = permissionService
         self.hotkeyProvider = hotkeyProvider
-        self.sessionModeProvider = sessionModeProvider
         self.postProcessorOptionsProvider = postProcessorOptionsProvider
         self.preparationKeyProvider = preparationKeyProvider
         self.insertionModeProvider = insertionModeProvider
@@ -280,7 +479,7 @@ final class DictationController {
             isCapturing = true
             let targetProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let liveTextSession = liveTextUpdatesProvider()
-                ? textInsertionService.beginLiveTextSession(mode: .accessibilityFirst)
+                ? textInsertionService.beginLiveTextSession(mode: insertionModeProvider())
                 : nil
             overlayController.updateStatus("Listening")
             overlayController.updateTranscript("Listening...")
@@ -296,6 +495,7 @@ final class DictationController {
             do {
                 var transcriptComposer = TranscriptComposer()
                 var transcriptStabilizer = TranscriptStabilizer()
+                var liveAccumulator = LiveDictationAccumulator()
                 var lastRenderedLiveText = ""
                 var focusMonitorTask: Task<Void, Never>?
                 var didLoseTextFocus = false
@@ -357,7 +557,11 @@ final class DictationController {
                         compositionContext = LiveCompositionContext()
                     }
 
-                    let displayBasis = stabilization.displayText
+                    let displayBasis = liveAccumulator.update(
+                        stableText: stabilization.stableText,
+                        volatileText: stabilization.volatileText,
+                        isFinalEvent: isFinalEvent
+                    )
                     let liveTranscript = liveTranscriptFormatter.format(
                         displayBasis,
                         options: postProcessorOptionsProvider(),
@@ -388,6 +592,7 @@ final class DictationController {
 
                 sessionMetrics.markTranscriptionFinished()
                 let finalText = transcriptComposer.finalTranscript
+                let sessionTranscript = liveAccumulator.finalizeSession(with: finalText)
                 let finalContext: LiveCompositionContext
                 if let liveTextSession {
                     switch liveTextSession.status() {
@@ -401,7 +606,7 @@ final class DictationController {
                 }
 
                 let normalized = postProcessor.normalize(
-                    finalText,
+                    sessionTranscript,
                     options: postProcessorOptionsProvider(),
                     context: finalContext
                 )
@@ -465,21 +670,39 @@ final class DictationController {
     }
 
     private func handleHotkeyPress() {
-        if sessionModeProvider() == .continuous {
-            if isCapturing || captureTask != nil {
+        if isCapturing || captureTask != nil {
+            if activeHotkeyMode == .continuous {
+                hotkeyHoldTask?.cancel()
+                hotkeyHoldTask = nil
+                activeHotkeyMode = .idle
                 stopCapture(graceful: true)
-            } else {
-                startCapture()
             }
             return
         }
 
+        activeHotkeyMode = .pending
         startCapture()
+        hotkeyHoldTask?.cancel()
+        hotkeyHoldTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard let self, self.activeHotkeyMode == .pending, self.isCapturing else { return }
+            self.activeHotkeyMode = .pushToTalk
+        }
     }
 
     private func handleHotkeyRelease() {
-        guard sessionModeProvider() == .pushToTalk else { return }
-        stopCapture(graceful: true)
+        hotkeyHoldTask?.cancel()
+        hotkeyHoldTask = nil
+
+        switch activeHotkeyMode {
+        case .pending:
+            activeHotkeyMode = .continuous
+        case .pushToTalk:
+            activeHotkeyMode = .idle
+            stopCapture(graceful: true)
+        case .continuous, .idle:
+            break
+        }
     }
 
     private func stopCapture(graceful: Bool) {

@@ -49,9 +49,16 @@ struct TranscriptComposer {
             currentSegmentPartial = nil
             fullTranscriptHypothesis = nil
         case .fullTranscript:
+            // Some streaming engines briefly emit an empty final before a corrected
+            // full-transcript replacement arrives. Preserve the current composition
+            // instead of wiping the dictated text in that gap.
+            guard let trimmed, !trimmed.isEmpty else {
+                currentSegmentPartial = nil
+                return
+            }
             fullTranscriptHypothesis = trimmed
             currentSegmentPartial = nil
-            finalizedSegments = trimmed.map { [$0] } ?? []
+            finalizedSegments = [trimmed]
         }
     }
 

@@ -107,9 +107,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyProvider: { [weak self] in
                 self?.settingsStore.hotkeyShortcut ?? .default
             },
-            sessionModeProvider: { [weak self] in
-                self?.settingsStore.dictationSessionMode ?? .pushToTalk
-            },
             postProcessorOptionsProvider: { [weak self] in
                 guard let self else { return .default }
                 return PostProcessor.Options(
@@ -234,14 +231,9 @@ struct SettingsView: View {
                     Text("Pasteboard fallback").tag(InsertionMode.pasteboardFirst)
                 }
 
-                Picker("Dictation session", selection: $settings.dictationSessionMode) {
-                    Text("Push to talk").tag(DictationSessionMode.pushToTalk)
-                    Text("Continuous live").tag(DictationSessionMode.continuous)
-                }
-
                 Toggle("Enable live text updates", isOn: $settings.enableLiveTextUpdates)
 
-                Text("Continuous live mode keeps the mic open until you press the hotkey again. Live text updates work best in standard text fields with Accessibility support.")
+                Text("Tap the hotkey once to keep dictation running continuously. Hold the hotkey for about one second to use push-to-talk. Live text updates work best in standard text fields with Accessibility support.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 

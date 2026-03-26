@@ -48,6 +48,7 @@ final class HybridStreamingASREngine: ASREngine {
                 private(set) var latestRealtimeTranscript = ""
                 private(set) var latestRealtimeEventWasFinal = false
                 private(set) var latestFinalizationTranscript = ""
+                private var latestLiveFinalizationTranscript = ""
 
                 func recordRealtime(_ event: ASREvent) -> Bool {
                     let text: String
@@ -68,6 +69,52 @@ final class HybridStreamingASREngine: ASREngine {
 
                 func recordFinalization(_ text: String) {
                     latestFinalizationTranscript = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+
+                func shouldEmitLiveFinalization(_ text: String) -> Bool {
+                    let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !normalized.isEmpty else { return false }
+                    guard normalized != latestLiveFinalizationTranscript else { return false }
+                    latestLiveFinalizationTranscript = normalized
+                    latestFinalizationTranscript = normalized
+                    return true
+                }
+
+                func shouldForwardRealtime(_ event: ASREvent) -> Bool {
+                    guard !latestLiveFinalizationTranscript.isEmpty else { return true }
+
+                    let normalized: String
+                    let isFinal: Bool
+                    switch event {
+                    case let .partial(value, _):
+                        normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        isFinal = false
+                    case let .final(value, _):
+                        normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        isFinal = true
+                    }
+
+                    guard !normalized.isEmpty else { return false }
+                    let realtimeWords = Self.normalizedWords(in: normalized)
+                    let finalizationWords = Self.normalizedWords(in: latestLiveFinalizationTranscript)
+                    let sharedPrefix = Self.sharedWordPrefixCount(realtimeWords, finalizationWords)
+                    guard sharedPrefix >= 2 else { return true }
+                    if !isFinal {
+                        return false
+                    }
+                    return realtimeWords.count > finalizationWords.count
+                }
+
+                private static func normalizedWords(in text: String) -> [String] {
+                    text
+                        .lowercased()
+                        .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
+                        .split(whereSeparator: \.isWhitespace)
+                        .map(String.init)
+                }
+
+                private static func sharedWordPrefixCount(_ lhs: [String], _ rhs: [String]) -> Int {
+                    zip(lhs, rhs).prefix { $0 == $1 }.count
                 }
 
                 func finalReplacementEvent() -> ASREvent? {
@@ -133,7 +180,9 @@ final class HybridStreamingASREngine: ASREngine {
                     do {
                         for try await event in realtimeEngine.transcribe(audioStream: realtimeStream) {
                             _ = await sharedState.recordRealtime(event)
-                            continuation.yield(event)
+                            if await sharedState.shouldForwardRealtime(event) {
+                                continuation.yield(event)
+                            }
                         }
                     } catch {
                         throw error
@@ -145,6 +194,10 @@ final class HybridStreamingASREngine: ASREngine {
                     do {
                         for try await event in finalizationEngine.transcribe(audioStream: finalizationStream) {
                             composer.apply(event)
+                            let rendered = composer.renderedText
+                            if await sharedState.shouldEmitLiveFinalization(rendered) {
+                                continuation.yield(.partial(rendered, scope: .fullTranscript))
+                            }
                         }
                         await sharedState.recordFinalization(composer.finalTranscript)
                     } catch {
