@@ -6,12 +6,16 @@ struct TranscriptComposer {
     private var fullTranscriptHypothesis: String?
 
     mutating func apply(_ event: ASREvent) {
+        let eventDesc: String
         switch event {
         case let .partial(text, scope):
+            eventDesc = "partial(\(text.prefix(30)), \(scope))"
             applyPartial(text, scope: scope)
         case let .final(text, scope):
+            eventDesc = "final(\(text.prefix(30)), \(scope))"
             applyFinal(text, scope: scope)
         }
+        RuntimeTrace.mark("TranscriptComposer.apply event=\(eventDesc) rendered=\(renderedText.prefix(50))")
     }
 
     var renderedText: String {

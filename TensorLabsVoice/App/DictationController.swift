@@ -11,6 +11,7 @@ struct LiveDictationAccumulator {
     }
 
     mutating func update(stableText: String, volatileText: String, isFinalEvent: Bool) -> String {
+        RuntimeTrace.mark("LiveDictationAccumulator.update start committed='\(committedText.prefix(30))' activeText='\(activeText.prefix(30))'")
         let stable = normalized(stableText)
         let volatile = normalized(volatileText)
         let previousActiveText = activeText
@@ -19,6 +20,7 @@ struct LiveDictationAccumulator {
         if !stable.isEmpty {
             reconcileCommitted(with: stable, previousRenderedText: previousRenderedText)
             activeText = deduplicatedVolatileText(activeText, against: committedText)
+            RuntimeTrace.mark("LiveDictationAccumulator after reconcile committed='\(committedText.prefix(30))'")
         }
 
         if shouldCommitActiveText(beforeReplacingWith: volatile, stableText: stable) {
@@ -481,6 +483,7 @@ final class DictationController {
             let liveTextSession = liveTextUpdatesProvider()
                 ? textInsertionService.beginLiveTextSession(mode: insertionModeProvider())
                 : nil
+            RuntimeTrace.mark("LiveTextSession started session=\(liveTextSession != nil)")
             overlayController.updateStatus("Listening")
             overlayController.updateTranscript("Listening...")
             overlayController.show()
@@ -562,6 +565,7 @@ final class DictationController {
                         volatileText: stabilization.volatileText,
                         isFinalEvent: isFinalEvent
                     )
+                    RuntimeTrace.mark("LiveAccumulator stable='\(stabilization.stableText.prefix(30))' volatile='\(stabilization.volatileText.prefix(30))' displayBasis='\(displayBasis.prefix(50))'")
                     let liveTranscript = liveTranscriptFormatter.format(
                         displayBasis,
                         options: postProcessorOptionsProvider(),
@@ -571,8 +575,11 @@ final class DictationController {
                         sessionMetrics.markFirstVisibleText()
                     }
                     overlayController.updateTranscript(liveTranscript)
-                    if let liveTextSession, !liveTranscript.isEmpty, liveTranscript != lastRenderedLiveText {
-                        if liveTextSession.update(text: liveTranscript) {
+                    if let liveTextSession, !liveTranscript.isEmpty {
+                        let textChanged = liveTranscript != lastRenderedLiveText
+                        let updateResult = liveTextSession.update(text: liveTranscript)
+                        RuntimeTrace.mark("LiveTextUpdate textChanged=\(textChanged) updateResult=\(updateResult) liveTranscript='\(liveTranscript.prefix(50))' lastRendered='\(lastRenderedLiveText.prefix(50))'")
+                        if updateResult {
                             lastRenderedLiveText = liveTranscript
                         }
                     }

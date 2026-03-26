@@ -45,6 +45,27 @@ final class TextInsertionService {
 
         func update(text: String) -> Bool {
             guard isActive else { return false }
+            RuntimeTrace.mark("LiveTextSession.update text='\(text.prefix(50))' lastRenderedText='\(lastRenderedText.prefix(30))'")
+            
+            if text == lastRenderedText {
+                RuntimeTrace.mark("LiveTextSession.update skipping exact duplicate text")
+                return true
+            }
+            
+            if !lastKnownValue.isEmpty {
+                let utf16Count = lastKnownValue.utf16.count
+                let start = max(0, min(trackedRange.location, utf16Count))
+                let end = max(start, min(trackedRange.location + trackedRange.length, utf16Count))
+                if let stringRange = Range(NSRange(location: start, length: end - start), in: lastKnownValue) {
+                    let existingAtRange = String(lastKnownValue[stringRange])
+                    if existingAtRange == text {
+                        RuntimeTrace.mark("LiveTextSession.update skipping duplicate text already at position")
+                        lastRenderedText = text
+                        return true
+                    }
+                }
+            }
+            
             switch transport {
             case .accessibility:
                 return replaceTrackedRange(with: text)
@@ -55,6 +76,7 @@ final class TextInsertionService {
 
         func finalize(text: String) -> Bool {
             defer { isActive = false }
+            RuntimeTrace.mark("LiveTextSession.finalize text='\(text.prefix(50))' lastRenderedText='\(lastRenderedText.prefix(30))'")
             switch transport {
             case .accessibility:
                 return replaceTrackedRange(with: text)
@@ -90,6 +112,8 @@ final class TextInsertionService {
                     !lastRenderedText.isEmpty &&
                     Self.text(in: currentValue, for: trackedRange) == lastRenderedText
 
+                RuntimeTrace.mark("LiveSessionStatus trackedTextStillPresent=\(trackedTextStillPresent) selectionCollapsedAtEnd=\(selectionCollapsedAtEnd) selectionMatchesTracked=\(selectionMatchesTracked) selectedRange=(\(selectedRange.location),\(selectedRange.length)) trackedRange=(\(trackedRange.location),\(trackedRange.length))")
+
                 if trackedTextStillPresent && (selectionCollapsedAtEnd || selectionMatchesTracked) {
                     // Preserve the existing dictated span when the host collapses the caret
                     // immediately after our own replacement.
@@ -119,6 +143,8 @@ final class TextInsertionService {
         private func replaceTrackedRange(with text: String) -> Bool {
             guard let target else { return false }
 
+            RuntimeTrace.mark("replaceTrackedRange text='\(text.prefix(50))' trackedRange=(\(trackedRange.location),\(trackedRange.length)) lastRenderedText='\(lastRenderedText.prefix(30))'")
+
             guard let currentValue = Self.readValue(from: target) ?? (!lastKnownValue.isEmpty ? lastKnownValue : nil),
                   let updatedValue = Self.replacing(range: trackedRange, in: currentValue, with: text),
                   AXUIElementSetAttributeValue(target, kAXValueAttribute as CFString, updatedValue as CFTypeRef) == .success
@@ -147,6 +173,11 @@ final class TextInsertionService {
 
         private func replaceTypedText(with text: String) -> Bool {
             guard Self.canSendKeyboardEvents(to: targetProcessIdentifier) else { return false }
+            
+            if text == lastRenderedText {
+                return true
+            }
+            
             let charactersToDelete = lastRenderedText.count
 
             if charactersToDelete > 0 {
@@ -323,11 +354,14 @@ final class TextInsertionService {
            supportsLiveRangeReplacement(target) {
             var selectedRange = CFRange(location: 0, length: 0)
             if readSelectedRange(from: target, into: &selectedRange) {
+                let existingText = LiveTextSession.readValue(from: target) ?? ""
+                RuntimeTrace.mark("beginLiveTextSession accessibility selectedRange=(\(selectedRange.location),\(selectedRange.length)) existingText='\(existingText.prefix(30))'")
                 return LiveTextSession(target: target, trackedRange: selectedRange)
             }
         }
 
         if let processIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+            RuntimeTrace.mark("beginLiveTextSession keyboard pid=\(processIdentifier)")
             return LiveTextSession(processIdentifier: processIdentifier)
         }
 
