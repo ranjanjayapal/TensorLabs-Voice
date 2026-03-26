@@ -45,6 +45,12 @@ final class TextInsertionService {
 
         func update(text: String) -> Bool {
             guard isActive else { return false }
+            
+            if transport == .keyboard {
+                RuntimeTrace.mark("LiveTextSession.update keyboard skipping live update, only finalize")
+                return true
+            }
+            
             RuntimeTrace.mark("LiveTextSession.update text='\(text.prefix(50))' lastRenderedText='\(lastRenderedText.prefix(30))'")
             
             if text == lastRenderedText {
@@ -66,12 +72,7 @@ final class TextInsertionService {
                 }
             }
             
-            switch transport {
-            case .accessibility:
-                return replaceTrackedRange(with: text)
-            case .keyboard:
-                return replaceTypedText(with: text)
-            }
+            return replaceTrackedRange(with: text)
         }
 
         func finalize(text: String) -> Bool {
@@ -347,16 +348,15 @@ final class TextInsertionService {
     }
 
     func beginLiveTextSession(mode: InsertionMode) -> LiveTextSession? {
-        let effectiveMode = preferredMode(for: mode)
-
-        if effectiveMode == .accessibilityFirst,
-           let target = focusedElement(),
-           supportsLiveRangeReplacement(target) {
-            var selectedRange = CFRange(location: 0, length: 0)
-            if readSelectedRange(from: target, into: &selectedRange) {
-                let existingText = LiveTextSession.readValue(from: target) ?? ""
-                RuntimeTrace.mark("beginLiveTextSession accessibility selectedRange=(\(selectedRange.location),\(selectedRange.length)) existingText='\(existingText.prefix(30))'")
-                return LiveTextSession(target: target, trackedRange: selectedRange)
+        if mode == .accessibilityFirst {
+            if let target = focusedElement(),
+               supportsLiveRangeReplacement(target) {
+                var selectedRange = CFRange(location: 0, length: 0)
+                if readSelectedRange(from: target, into: &selectedRange) {
+                    let existingText = LiveTextSession.readValue(from: target) ?? ""
+                    RuntimeTrace.mark("beginLiveTextSession accessibility selectedRange=(\(selectedRange.location),\(selectedRange.length)) existingText='\(existingText.prefix(30))'")
+                    return LiveTextSession(target: target, trackedRange: selectedRange)
+                }
             }
         }
 
