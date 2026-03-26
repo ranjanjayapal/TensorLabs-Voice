@@ -528,19 +528,29 @@ final class DictationController {
                     let rawHypothesis: String
                     let stabilization: TranscriptStabilizer.Snapshot
                     let isFinalEvent: Bool
+                    let textScope: ASRTextScope
                     switch event {
-                    case .partial:
+                    case .partial(let text, let scope):
                         sessionMetrics.markFirstPartial()
-                        transcriptComposer.apply(event)
-                        rawHypothesis = transcriptComposer.renderedText
-                        stabilization = transcriptStabilizer.update(with: rawHypothesis)
+                        textScope = scope
+                        if scope == .fullTranscript {
+                            rawHypothesis = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            stabilization = transcriptStabilizer.update(with: rawHypothesis)
+                        } else {
+                            transcriptComposer.apply(event)
+                            rawHypothesis = transcriptComposer.renderedText
+                            stabilization = transcriptStabilizer.update(with: rawHypothesis)
+                        }
                         isFinalEvent = false
-                    case .final:
+                    case .final(let text, let scope):
+                        textScope = scope
                         transcriptComposer.apply(event)
                         rawHypothesis = transcriptComposer.renderedText
                         stabilization = transcriptStabilizer.commit(rawHypothesis)
                         isFinalEvent = true
                     }
+                    
+                    RuntimeTrace.mark("ASREvent scope=\(textScope) isFinal=\(isFinalEvent) text='\(rawHypothesis.prefix(40))'")
 
                     sessionMetrics.recordTranscriptStabilization(stabilization)
 
@@ -560,11 +570,17 @@ final class DictationController {
                         compositionContext = LiveCompositionContext()
                     }
 
-                    let displayBasis = liveAccumulator.update(
-                        stableText: stabilization.stableText,
-                        volatileText: stabilization.volatileText,
-                        isFinalEvent: isFinalEvent
-                    )
+                    let displayBasis: String
+                    if textScope == .fullTranscript {
+                        displayBasis = rawHypothesis.trimmingCharacters(in: .whitespacesAndNewlines)
+                        RuntimeTrace.mark("Using fullTranscript scope - displayBasis='\(displayBasis.prefix(50))'")
+                    } else {
+                        displayBasis = liveAccumulator.update(
+                            stableText: stabilization.stableText,
+                            volatileText: stabilization.volatileText,
+                            isFinalEvent: isFinalEvent
+                        )
+                    }
                     RuntimeTrace.mark("LiveAccumulator stable='\(stabilization.stableText.prefix(30))' volatile='\(stabilization.volatileText.prefix(30))' displayBasis='\(displayBasis.prefix(50))'")
                     let liveTranscript = liveTranscriptFormatter.format(
                         displayBasis,
