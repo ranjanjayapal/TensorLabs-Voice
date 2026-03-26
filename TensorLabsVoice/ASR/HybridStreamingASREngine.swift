@@ -195,6 +195,7 @@ final class HybridStreamingASREngine: ASREngine {
                         for try await event in finalizationEngine.transcribe(audioStream: finalizationStream) {
                             composer.apply(event)
                             let rendered = composer.renderedText
+                            RuntimeTrace.mark("FinalizationEngine event rendered='\(rendered.prefix(50))'")
                             if await sharedState.shouldEmitLiveFinalization(rendered) {
                                 continuation.yield(.partial(rendered, scope: .fullTranscript))
                             }

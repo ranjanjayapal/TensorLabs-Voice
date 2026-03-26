@@ -571,9 +571,12 @@ final class DictationController {
                     }
 
                     let displayBasis: String
+                    var isFullTranscriptScope = false
                     if textScope == .fullTranscript {
+                        isFullTranscriptScope = true
                         displayBasis = rawHypothesis.trimmingCharacters(in: .whitespacesAndNewlines)
-                        RuntimeTrace.mark("Using fullTranscript scope - displayBasis='\(displayBasis.prefix(50))'")
+                        lastRenderedLiveText = ""
+                        RuntimeTrace.mark("Using fullTranscript scope - displayBasis='\(displayBasis.prefix(50))' lastRendered cleared")
                     } else {
                         displayBasis = liveAccumulator.update(
                             stableText: stabilization.stableText,
@@ -581,7 +584,7 @@ final class DictationController {
                             isFinalEvent: isFinalEvent
                         )
                     }
-                    RuntimeTrace.mark("LiveAccumulator stable='\(stabilization.stableText.prefix(30))' volatile='\(stabilization.volatileText.prefix(30))' displayBasis='\(displayBasis.prefix(50))'")
+                    RuntimeTrace.mark("LiveAccumulator stable='\(stabilization.stableText.prefix(30))' volatile='\(stabilization.volatileText.prefix(30))' displayBasis='\(displayBasis.prefix(50))' isFullTranscriptScope=\(isFullTranscriptScope)")
                     let liveTranscript = liveTranscriptFormatter.format(
                         displayBasis,
                         options: postProcessorOptionsProvider(),
@@ -594,8 +597,8 @@ final class DictationController {
                     if let liveTextSession, !liveTranscript.isEmpty {
                         let textChanged = liveTranscript != lastRenderedLiveText
                         let updateResult = liveTextSession.update(text: liveTranscript)
-                        RuntimeTrace.mark("LiveTextUpdate textChanged=\(textChanged) updateResult=\(updateResult) liveTranscript='\(liveTranscript.prefix(50))' lastRendered='\(lastRenderedLiveText.prefix(50))'")
-                        if updateResult {
+                        RuntimeTrace.mark("LiveTextUpdate textChanged=\(textChanged) updateResult=\(updateResult) isFullTranscriptScope=\(isFullTranscriptScope) liveTranscript='\(liveTranscript.prefix(50))' lastRendered='\(lastRenderedLiveText.prefix(50))'")
+                        if updateResult && !isFullTranscriptScope {
                             lastRenderedLiveText = liveTranscript
                         }
                     }
