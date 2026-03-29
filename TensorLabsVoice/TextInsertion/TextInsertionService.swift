@@ -4,6 +4,7 @@ import ApplicationServices
 final class TextInsertionService {
     enum InsertionResult {
         case accessibility
+        case keyboard
         case pasteboard
         case failed
     }
@@ -82,7 +83,7 @@ final class TextInsertionService {
             case .accessibility:
                 return replaceTrackedRange(with: text)
             case .keyboard:
-                return replaceTypedTextWithPasteboard(text)
+                return replaceTypedText(with: text)
             }
         }
 
@@ -193,10 +194,6 @@ final class TextInsertionService {
             return true
         }
 
-        private func replaceTypedTextWithPasteboard(_ text: String) -> Bool {
-            replaceTypedText(with: text)
-        }
-
         private func setSelectedRange(_ range: CFRange) -> Bool {
             guard let target else { return false }
             var mutableRange = range
@@ -296,7 +293,7 @@ final class TextInsertionService {
             return true
         }
 
-        private static func sendUnicodeText(_ text: String, to processIdentifier: pid_t?) -> Bool {
+        fileprivate static func sendUnicodeText(_ text: String, to processIdentifier: pid_t?) -> Bool {
             guard !text.isEmpty else { return true }
             for scalar in text.utf16 {
                 guard sendUnicodeScalar(scalar, to: processIdentifier) else { return false }
@@ -330,10 +327,57 @@ final class TextInsertionService {
             guard let processIdentifier else { return true }
             return NSWorkspace.shared.frontmostApplication?.processIdentifier == processIdentifier
         }
+
+        private func pasteText(_ text: String, to processIdentifier: pid_t?) -> Bool {
+            guard Self.canSendKeyboardEvents(to: processIdentifier) else { return false }
+            guard !text.isEmpty else { return true }
+
+            let pasteboard = NSPasteboard.general
+            let previousValue = pasteboard.string(forType: .string)
+
+            pasteboard.clearContents()
+            guard pasteboard.setString(text, forType: .string) else { return false }
+            guard Self.sendPasteShortcut(to: processIdentifier) else {
+                if let previousValue {
+                    pasteboard.clearContents()
+                    _ = pasteboard.setString(previousValue, forType: .string)
+                }
+                return false
+            }
+
+            lastRenderedText = text
+            if let previousValue {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+                    pasteboard.clearContents()
+                    _ = pasteboard.setString(previousValue, forType: .string)
+                }
+            }
+            return true
+        }
+
+        fileprivate static func sendPasteShortcut(to processIdentifier: pid_t?) -> Bool {
+            guard let source = CGEventSource(stateID: .combinedSessionState),
+                  let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
+            else {
+                return false
+            }
+
+            keyDown.flags = .maskCommand
+            keyUp.flags = .maskCommand
+            postKeyboardEvent(keyDown, to: processIdentifier)
+            postKeyboardEvent(keyUp, to: processIdentifier)
+            return true
+        }
     }
 
     func insertText(_ text: String, mode: InsertionMode, preferredProcessIdentifier: pid_t? = nil) -> InsertionResult {
         guard !text.isEmpty else { return .pasteboard }
+        let targetApplication = Self.runningApplication(for: preferredProcessIdentifier) ?? NSWorkspace.shared.frontmostApplication
+
+        if Self.prefersKeyboardInjection(for: targetApplication) {
+            return insertUsingKeyboard(text, preferredProcessIdentifier: preferredProcessIdentifier) ? .keyboard : .failed
+        }
 
         let effectiveMode = preferredMode(for: mode)
 
@@ -348,7 +392,9 @@ final class TextInsertionService {
     }
 
     func beginLiveTextSession(mode: InsertionMode) -> LiveTextSession? {
-        if mode == .accessibilityFirst {
+        let effectiveMode = preferredMode(for: mode)
+
+        if effectiveMode == .accessibilityFirst {
             if let target = focusedElement(),
                supportsLiveRangeReplacement(target) {
                 var selectedRange = CFRange(location: 0, length: 0)
@@ -403,6 +449,11 @@ final class TextInsertionService {
             bundleIdentifier: application?.bundleIdentifier,
             localizedName: application?.localizedName
         )
+    }
+
+    private static func runningApplication(for processIdentifier: pid_t?) -> NSRunningApplication? {
+        guard let processIdentifier else { return nil }
+        return NSRunningApplication(processIdentifier: processIdentifier)
     }
 
     private func insertUsingAccessibility(_ text: String) -> Bool {
@@ -483,15 +534,7 @@ final class TextInsertionService {
         pasteboard.clearContents()
         guard pasteboard.setString(text, forType: .string) else { return false }
 
-        let source = CGEventSource(stateID: .combinedSessionState)
-        guard source != nil else { return false }
-        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
-        keyDown?.flags = .maskCommand
-        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
-        keyUp?.flags = .maskCommand
-        guard let keyDown, let keyUp else { return false }
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        guard LiveTextSession.sendPasteShortcut(to: preferredProcessIdentifier) else { return false }
 
         // Give the focused app a moment to consume Cmd+V before restoring clipboard.
         if let previousValue {
@@ -502,6 +545,14 @@ final class TextInsertionService {
         }
 
         return true
+    }
+
+    private func insertUsingKeyboard(_ text: String, preferredProcessIdentifier: pid_t?) -> Bool {
+        guard preferredProcessIdentifier == nil || preferredProcessIdentifier == NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            return false
+        }
+
+        return LiveTextSession.sendUnicodeText(text, to: preferredProcessIdentifier)
     }
 
     private static let terminalBundleIdentifiers: Set<String> = [

@@ -14,13 +14,13 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TensorLabs Voice needs microphone access to capture your speech.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>TensorLabs Voice needs speech recognition access to transcribe your speech when Apple Speech is used.</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>TensorLabs Voice needs microphone access to capture your speech.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>TensorLabs Voice needs speech recognition access to transcribe your speech when the Apple fallback engine is used.</string>
 </dict>
 </plist>

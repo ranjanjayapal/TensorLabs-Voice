@@ -3,26 +3,45 @@ import Foundation
 @MainActor
 final class HybridStreamingASREngine: ASREngine {
     let id = "hybrid_streaming_asr"
+    var realtimeEngineID: String { realtimeEngine.id }
+    var finalizationEngineID: String {
+        if let preferred = finalizationEngine as? PreferredLocalASREngine {
+            return preferred.activeEngineID
+        }
+        return finalizationEngine.id
+    }
     var requiresSpeechRecognitionPermission: Bool {
-        realtimeEngine.requiresSpeechRecognitionPermission || finalizationEngine.requiresSpeechRecognitionPermission
+        if bypassHybridProvider() {
+            return finalizationEngine.requiresSpeechRecognitionPermission
+        }
+        return realtimeEngine.requiresSpeechRecognitionPermission || finalizationEngine.requiresSpeechRecognitionPermission
     }
 
     private let realtimeEngine: ASREngine
     private let finalizationEngine: ASREngine
     private let metricsLogger: LocalMetricsLogger
+    private let bypassHybridProvider: () -> Bool
     private var finalizationAvailable = false
 
     init(
         realtimeEngine: ASREngine,
         finalizationEngine: ASREngine,
-        metricsLogger: LocalMetricsLogger
+        metricsLogger: LocalMetricsLogger,
+        bypassHybridProvider: @escaping () -> Bool = { false }
     ) {
         self.realtimeEngine = realtimeEngine
         self.finalizationEngine = finalizationEngine
         self.metricsLogger = metricsLogger
+        self.bypassHybridProvider = bypassHybridProvider
     }
 
     func prepare() async throws {
+        if bypassHybridProvider() {
+            finalizationAvailable = false
+            try await finalizationEngine.prepare()
+            return
+        }
+
         try await realtimeEngine.prepare()
 
         do {
@@ -39,6 +58,10 @@ final class HybridStreamingASREngine: ASREngine {
     }
 
     func transcribe(audioStream: AsyncThrowingStream<[Float], Error>) -> AsyncThrowingStream<ASREvent, Error> {
+        if bypassHybridProvider() {
+            return finalizationEngine.transcribe(audioStream: audioStream)
+        }
+
         guard finalizationAvailable else {
             return realtimeEngine.transcribe(audioStream: audioStream)
         }
@@ -215,12 +238,9 @@ final class HybridStreamingASREngine: ASREngine {
                     }
                     broadcaster.finish()
 
-                    do {
-                        try await realtimeTask.value
-                    } catch {
-                        continuation.finish(throwing: error)
-                        return
-                    }
+                    // Once capture ends, we no longer need Apple Speech to keep processing.
+                    // Stop it immediately so local finalization gets the remaining resources.
+                    await realtimeEngine.stop()
 
                     await finalizationTask.value
                     if let replacement = await sharedState.finalReplacementEvent() {
@@ -236,10 +256,17 @@ final class HybridStreamingASREngine: ASREngine {
                         continuation.yield(replacement)
                     }
                     continuation.finish()
+
+                    Task {
+                        _ = try? await realtimeTask.value
+                    }
                 } catch {
                     broadcaster.finish(throwing: error)
-                    _ = try? await realtimeTask.value
+                    await realtimeEngine.stop()
                     await finalizationTask.value
+                    Task {
+                        _ = try? await realtimeTask.value
+                    }
                     continuation.finish(throwing: error)
                 }
             }

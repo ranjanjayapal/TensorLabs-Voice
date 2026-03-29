@@ -204,7 +204,6 @@ final class DictationController {
     private let hotkeyService: GlobalHotkeyService
     private let textInsertionService: TextInsertionService
     private let postProcessor: PostProcessor
-    private let liveTranscriptFormatter: LiveTranscriptFormatter
     private let metricsLogger: LocalMetricsLogger
     private let overlayController: ListeningOverlayController
     private let permissionService: PermissionService
@@ -212,14 +211,12 @@ final class DictationController {
     private let postProcessorOptionsProvider: () -> PostProcessor.Options
     private let preparationKeyProvider: () -> String
     private let insertionModeProvider: () -> InsertionMode
-    private let liveTextUpdatesProvider: () -> Bool
 
     private var captureTask: Task<Void, Never>?
     private var prepareTask: Task<Bool, Never>?
     private var isCapturing = false
     private var isPrepared = false
     private var lastPreparationKey: String?
-    private var hasShownAccessibilityGuidance = false
     private var hotkeyHoldTask: Task<Void, Never>?
     private var activeHotkeyMode: HotkeyMode = .idle
 
@@ -238,22 +235,19 @@ final class DictationController {
         hotkeyService: GlobalHotkeyService,
         textInsertionService: TextInsertionService,
         postProcessor: PostProcessor,
-        liveTranscriptFormatter: LiveTranscriptFormatter = LiveTranscriptFormatter(),
         metricsLogger: LocalMetricsLogger,
         overlayController: ListeningOverlayController,
         permissionService: PermissionService,
         hotkeyProvider: @escaping () -> HotkeyShortcut,
         postProcessorOptionsProvider: @escaping () -> PostProcessor.Options,
         preparationKeyProvider: @escaping () -> String,
-        insertionModeProvider: @escaping () -> InsertionMode,
-        liveTextUpdatesProvider: @escaping () -> Bool
+        insertionModeProvider: @escaping () -> InsertionMode
     ) {
         self.engine = engine
         self.audioCaptureService = audioCaptureService
         self.hotkeyService = hotkeyService
         self.textInsertionService = textInsertionService
         self.postProcessor = postProcessor
-        self.liveTranscriptFormatter = liveTranscriptFormatter
         self.metricsLogger = metricsLogger
         self.overlayController = overlayController
         self.permissionService = permissionService
@@ -261,7 +255,6 @@ final class DictationController {
         self.postProcessorOptionsProvider = postProcessorOptionsProvider
         self.preparationKeyProvider = preparationKeyProvider
         self.insertionModeProvider = insertionModeProvider
-        self.liveTextUpdatesProvider = liveTextUpdatesProvider
     }
 
     func setEnabled(_ enabled: Bool) async {
@@ -269,12 +262,12 @@ final class DictationController {
         if enabled {
             let status = await permissionService.requestRequiredPermissions(
                 requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
-                requiresAccessibility: false
+                requiresAccessibility: true
             )
             RuntimeTrace.mark("DictationController permissions microphone=\(status.microphoneGranted) speech=\(status.speechGranted) accessibility=\(status.accessibilityGranted)")
             guard status.satisfiesRequirements(
                 requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
-                requiresAccessibility: false
+                requiresAccessibility: true
             ) else {
                 metricsLogger.log(event: "permissions_denied", metadata: [
                     "microphone": status.microphoneGranted ? "granted" : "denied",
@@ -284,7 +277,7 @@ final class DictationController {
                 showPermissionGuidance(
                     microphoneGranted: status.microphoneGranted,
                     speechGranted: status.speechGranted,
-                    accessibilityGranted: true
+                    accessibilityGranted: status.accessibilityGranted
                 )
                 isEnabled = false
                 RuntimeTrace.mark("DictationController.setEnabled denied")
@@ -299,7 +292,6 @@ final class DictationController {
             })
 
             isEnabled = true
-            presentAccessibilityGuidanceIfNeeded()
             RuntimeTrace.mark("DictationController.setEnabled success")
             return
         }
@@ -316,7 +308,7 @@ final class DictationController {
             let status = permissionService.currentStatus()
             guard status.satisfiesRequirements(
                 requiresSpeechRecognition: engine.requiresSpeechRecognitionPermission,
-                requiresAccessibility: false
+                requiresAccessibility: true
             ) else {
                 return
             }
@@ -360,38 +352,6 @@ final class DictationController {
                 targetPane = "Privacy_SpeechRecognition"
             }
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(targetPane)") {
-                NSWorkspace.shared.open(url)
-            }
-        }
-    }
-
-    private func presentAccessibilityGuidanceIfNeeded() {
-        guard !hasShownAccessibilityGuidance else { return }
-
-        let status = permissionService.currentStatus()
-        guard !status.accessibilityGranted else { return }
-        guard liveTextUpdatesProvider() || insertionModeProvider() == .accessibilityFirst else { return }
-
-        hasShownAccessibilityGuidance = true
-        metricsLogger.log(event: "dictation_accessibility_guidance_needed", metadata: [
-            "live_text_updates": liveTextUpdatesProvider() ? "true" : "false",
-            "insertion_mode": insertionModeProvider().rawValue,
-        ])
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            let trustedAfterPrompt = permissionService.promptForAccessibilityPermission()
-            guard !trustedAfterPrompt else { return }
-
-            NSApp.activate(ignoringOtherApps: true)
-            let alert = NSAlert()
-            alert.alertStyle = .informational
-            alert.messageText = "Enable Accessibility For Live Dictation"
-            alert.informativeText = "Speech recognition is working, but live text streaming into other apps needs Accessibility permission. macOS should have opened the Accessibility settings panel. Turn on TensorLabsVoice there, then come back and try dictation again."
-            alert.addButton(withTitle: "Open Accessibility Settings")
-            alert.addButton(withTitle: "Later")
-            if alert.runModal() == .alertFirstButtonReturn,
-               let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                 NSWorkspace.shared.open(url)
             }
         }
@@ -480,10 +440,6 @@ final class DictationController {
 
             isCapturing = true
             let targetProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            let liveTextSession = liveTextUpdatesProvider()
-                ? textInsertionService.beginLiveTextSession(mode: insertionModeProvider())
-                : nil
-            RuntimeTrace.mark("LiveTextSession started session=\(liveTextSession != nil)")
             overlayController.updateStatus("Listening")
             overlayController.updateTranscript("Listening...")
             overlayController.show()
@@ -496,33 +452,10 @@ final class DictationController {
             let stream = audioCaptureService.startCaptureStream()
 
             do {
+                let liveTranscriptFormatter = LiveTranscriptFormatter()
                 var transcriptComposer = TranscriptComposer()
                 var transcriptStabilizer = TranscriptStabilizer()
                 var liveAccumulator = LiveDictationAccumulator()
-                var lastRenderedLiveText = ""
-                var focusMonitorTask: Task<Void, Never>?
-                var didLoseTextFocus = false
-
-                if let liveTextSession {
-                    focusMonitorTask = Task { @MainActor [weak self] in
-                        while !(Task.isCancelled) {
-                            try? await Task.sleep(nanoseconds: 180_000_000)
-                            switch liveTextSession.status() {
-                            case .active:
-                                continue
-                            case .focusLost:
-                                didLoseTextFocus = true
-                                self?.stopCapture(graceful: true)
-                                return
-                            case .unavailable:
-                                continue
-                            }
-                        }
-                    }
-                }
-                defer {
-                    focusMonitorTask?.cancel()
-                }
 
                 for try await event in engine.transcribe(audioStream: stream) {
                     let rawHypothesis: String
@@ -542,41 +475,22 @@ final class DictationController {
                             stabilization = transcriptStabilizer.update(with: rawHypothesis)
                         }
                         isFinalEvent = false
-                    case .final(let text, let scope):
+                    case .final(_, let scope):
                         textScope = scope
                         transcriptComposer.apply(event)
                         rawHypothesis = transcriptComposer.renderedText
                         stabilization = transcriptStabilizer.commit(rawHypothesis)
                         isFinalEvent = true
                     }
-                    
-                    RuntimeTrace.mark("ASREvent scope=\(textScope) isFinal=\(isFinalEvent) text='\(rawHypothesis.prefix(40))'")
 
                     sessionMetrics.recordTranscriptStabilization(stabilization)
 
-                    let compositionContext: LiveCompositionContext
-                    if let liveTextSession {
-                        switch liveTextSession.status() {
-                        case let .active(context):
-                            compositionContext = context
-                        case .focusLost:
-                            didLoseTextFocus = true
-                            stopCapture(graceful: true)
-                            compositionContext = LiveCompositionContext()
-                        case .unavailable:
-                            compositionContext = LiveCompositionContext()
-                        }
-                    } else {
-                        compositionContext = LiveCompositionContext()
-                    }
+                    let compositionContext = LiveCompositionContext()
 
                     let displayBasis: String
-                    var isFullTranscriptScope = false
-                    if textScope == .fullTranscript {
-                        isFullTranscriptScope = true
+                    let isFullTranscriptScope = textScope == .fullTranscript
+                    if isFullTranscriptScope {
                         displayBasis = rawHypothesis.trimmingCharacters(in: .whitespacesAndNewlines)
-                        lastRenderedLiveText = ""
-                        RuntimeTrace.mark("Using fullTranscript scope - displayBasis='\(displayBasis.prefix(50))' lastRendered cleared")
                     } else {
                         displayBasis = liveAccumulator.update(
                             stableText: stabilization.stableText,
@@ -584,7 +498,7 @@ final class DictationController {
                             isFinalEvent: isFinalEvent
                         )
                     }
-                    RuntimeTrace.mark("LiveAccumulator stable='\(stabilization.stableText.prefix(30))' volatile='\(stabilization.volatileText.prefix(30))' displayBasis='\(displayBasis.prefix(50))' isFullTranscriptScope=\(isFullTranscriptScope)")
+
                     let liveTranscript = liveTranscriptFormatter.format(
                         displayBasis,
                         options: postProcessorOptionsProvider(),
@@ -594,14 +508,6 @@ final class DictationController {
                         sessionMetrics.markFirstVisibleText()
                     }
                     overlayController.updateTranscript(liveTranscript)
-                    if let liveTextSession, !liveTranscript.isEmpty {
-                        let textChanged = liveTranscript != lastRenderedLiveText
-                        let updateResult = liveTextSession.update(text: liveTranscript)
-                        RuntimeTrace.mark("LiveTextUpdate textChanged=\(textChanged) updateResult=\(updateResult) isFullTranscriptScope=\(isFullTranscriptScope) liveTranscript='\(liveTranscript.prefix(50))' lastRendered='\(lastRenderedLiveText.prefix(50))'")
-                        if updateResult && !isFullTranscriptScope {
-                            lastRenderedLiveText = liveTranscript
-                        }
-                    }
 
                     if stabilization.revisionCount <= 5 || stabilization.revisionCount % 5 == 0 || isFinalEvent {
                         metricsLogger.log(event: "dictation_live_update", metadata: [
@@ -619,17 +525,7 @@ final class DictationController {
                 sessionMetrics.markTranscriptionFinished()
                 let finalText = transcriptComposer.finalTranscript
                 let sessionTranscript = liveAccumulator.finalizeSession(with: finalText)
-                let finalContext: LiveCompositionContext
-                if let liveTextSession {
-                    switch liveTextSession.status() {
-                    case let .active(context):
-                        finalContext = context
-                    case .focusLost, .unavailable:
-                        finalContext = LiveCompositionContext()
-                    }
-                } else {
-                    finalContext = LiveCompositionContext()
-                }
+                let finalContext = LiveCompositionContext()
 
                 let normalized = postProcessor.normalize(
                     sessionTranscript,
@@ -641,47 +537,50 @@ final class DictationController {
                 var insertionMethod = "none"
                 if !normalized.isEmpty {
                     overlayController.updateStatus("Inserting")
+                    overlayController.updateTranscript(normalized)
+                    if let targetProcessIdentifier,
+                       let targetApplication = NSRunningApplication(processIdentifier: targetProcessIdentifier),
+                       NSWorkspace.shared.frontmostApplication?.processIdentifier != targetProcessIdentifier {
+                        _ = targetApplication.activate()
+                        try? await Task.sleep(nanoseconds: 150_000_000)
+                    }
                     try? await Task.sleep(nanoseconds: 50_000_000)
-                    if let liveTextSession {
-                        insertionSucceeded = liveTextSession.finalize(text: normalized)
-                        switch liveTextSession.transport {
-                        case .accessibility:
-                            insertionMethod = insertionSucceeded ? "live_accessibility" : "live_accessibility_failed"
-                        case .keyboard:
-                            insertionMethod = insertionSucceeded ? "live_keyboard" : "live_keyboard_failed"
-                        }
-                    } else {
-                        let result = textInsertionService.insertText(
-                            normalized,
-                            mode: insertionModeProvider(),
-                            preferredProcessIdentifier: targetProcessIdentifier
-                        )
-                        switch result {
-                        case .accessibility:
-                            insertionSucceeded = true
-                            insertionMethod = "accessibility"
-                        case .pasteboard:
-                            insertionSucceeded = true
-                            insertionMethod = "pasteboard"
-                        case .failed:
-                            insertionSucceeded = false
-                            insertionMethod = "failed"
-                        }
+                    let result = textInsertionService.insertText(
+                        normalized,
+                        mode: insertionModeProvider(),
+                        preferredProcessIdentifier: targetProcessIdentifier
+                    )
+                    switch result {
+                    case .accessibility:
+                        insertionSucceeded = true
+                        insertionMethod = "accessibility"
+                    case .keyboard:
+                        insertionSucceeded = true
+                        insertionMethod = "keyboard"
+                    case .pasteboard:
+                        insertionSucceeded = true
+                        insertionMethod = "pasteboard"
+                    case .failed:
+                        insertionSucceeded = false
+                        insertionMethod = "failed"
                     }
                 }
                 sessionMetrics.markInsertionFinished()
 
                 let engineUsed = (engine as? FallbackASREngine)?.lastEngineUsed ?? engine.id
                 let fallbackUsed = (engine as? FallbackASREngine)?.lastFallbackUsed ?? false
+                let finalizationEngineUsed = (engine as? HybridStreamingASREngine)?.finalizationEngineID ?? engineUsed
+                let realtimeEngineUsed = (engine as? HybridStreamingASREngine)?.realtimeEngineID ?? ""
                 metricsLogger.log(event: "capture_complete", metadata: sessionMetrics.metadata(additional: [
                     "raw_characters": "\(finalText.count)",
                     "characters": "\(normalized.count)",
                     "inserted": insertionSucceeded ? "true" : "false",
                     "engine_used": engineUsed,
+                    "finalization_engine_used": finalizationEngineUsed,
+                    "realtime_engine_used": realtimeEngineUsed,
                     "fallback_used": fallbackUsed ? "true" : "false",
-                    "focus_lost_stop": didLoseTextFocus ? "true" : "false",
                     "insertion_method": insertionMethod,
-                    "live_text_session": liveTextSession == nil ? "false" : "true",
+                    "live_text_session": "false",
                 ]))
             } catch {
                 if Task.isCancelled {

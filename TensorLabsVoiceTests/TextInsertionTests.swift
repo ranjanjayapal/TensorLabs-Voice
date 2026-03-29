@@ -11,10 +11,9 @@ final class TextInsertionTests: XCTestCase {
         let store = SettingsStore(defaults: defaults)
 
         XCTAssertEqual(store.dictationMode, .balanced)
-        XCTAssertEqual(store.insertionMode, .accessibilityFirst)
+        XCTAssertEqual(store.insertionMode, .pasteboardFirst)
         XCTAssertEqual(store.dictationSessionMode, .pushToTalk)
         XCTAssertTrue(store.enableDiagnostics)
-        XCTAssertTrue(store.enableLiveTextUpdates)
         XCTAssertFalse(store.launchAtLogin)
     }
 
@@ -38,6 +37,12 @@ final class TextInsertionTests: XCTestCase {
             TextInsertionService.prefersKeyboardInjection(
                 bundleIdentifier: "com.apple.Terminal",
                 localizedName: "Terminal"
+            )
+        )
+        XCTAssertTrue(
+            TextInsertionService.prefersKeyboardInjection(
+                bundleIdentifier: "com.googlecode.iterm2",
+                localizedName: "iTerm"
             )
         )
     }

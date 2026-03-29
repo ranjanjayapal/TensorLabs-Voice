@@ -73,10 +73,6 @@ final class SettingsStore: ObservableObject {
         didSet { defaults.set(enableSmartListFormatting, forKey: Keys.enableSmartListFormatting) }
     }
 
-    @Published var enableLiveTextUpdates: Bool {
-        didSet { defaults.set(enableLiveTextUpdates, forKey: Keys.enableLiveTextUpdates) }
-    }
-
     @Published var customWordReplacementsRaw: String {
         didSet { defaults.set(customWordReplacementsRaw, forKey: Keys.customWordReplacementsRaw) }
     }
@@ -98,7 +94,6 @@ final class SettingsStore: ObservableObject {
         static let hotkeyOption = "settings.hotkey.option"
         static let hotkeyControl = "settings.hotkey.control"
         static let enableSmartListFormatting = "settings.text.enableSmartListFormatting"
-        static let enableLiveTextUpdates = "settings.text.enableLiveTextUpdates"
         static let customWordReplacementsRaw = "settings.text.customWordReplacementsRaw"
     }
 
@@ -124,7 +119,7 @@ final class SettingsStore: ObservableObject {
         }
 
         let insertionValue = defaults.string(forKey: Keys.insertionMode)
-        insertionMode = InsertionMode(rawValue: insertionValue ?? "") ?? .accessibilityFirst
+        insertionMode = InsertionMode(rawValue: insertionValue ?? "") ?? .pasteboardFirst
 
         let sessionModeValue = defaults.string(forKey: Keys.dictationSessionMode)
         dictationSessionMode = DictationSessionMode(rawValue: sessionModeValue ?? "") ?? .pushToTalk
@@ -143,7 +138,6 @@ final class SettingsStore: ObservableObject {
         hotkeyOption = defaults.object(forKey: Keys.hotkeyOption) as? Bool ?? HotkeyShortcut.default.option
         hotkeyControl = defaults.object(forKey: Keys.hotkeyControl) as? Bool ?? HotkeyShortcut.default.control
         enableSmartListFormatting = defaults.object(forKey: Keys.enableSmartListFormatting) as? Bool ?? true
-        enableLiveTextUpdates = defaults.object(forKey: Keys.enableLiveTextUpdates) as? Bool ?? true
         customWordReplacementsRaw = defaults.string(forKey: Keys.customWordReplacementsRaw) ?? ""
     }
 

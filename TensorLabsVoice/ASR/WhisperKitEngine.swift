@@ -13,28 +13,22 @@ final class WhisperKitEngine: ASREngine {
     private let metricsLogger: LocalMetricsLogger
     private let modeProvider: () -> DictationMode
     private let languageProvider: () -> TranscriptionLanguage
+    private let liveStreamingCorrectionProvider: () -> Bool
     private var whisperKit: WhisperKit?
     private var preparedModelName: String?
-    private let streamingTranscriber = StreamingSegmentTranscriber(
-        config: StreamingSegmentationConfig(
-            minSilenceDuration: 0.9,
-            partialResultInterval: 0.45,
-            maxSegmentDuration: 14.0,
-            minSegmentDurationBeforeSplit: 1.35,
-            emitPartialResults: true
-        )
-    )
 
     init(
         modelManager: ModelManager,
         metricsLogger: LocalMetricsLogger,
         modeProvider: @escaping () -> DictationMode,
-        languageProvider: @escaping () -> TranscriptionLanguage
+        languageProvider: @escaping () -> TranscriptionLanguage,
+        liveStreamingCorrectionProvider: @escaping () -> Bool = { true }
     ) {
         self.modelManager = modelManager
         self.metricsLogger = metricsLogger
         self.modeProvider = modeProvider
         self.languageProvider = languageProvider
+        self.liveStreamingCorrectionProvider = liveStreamingCorrectionProvider
     }
 
     func prepare() async throws {
@@ -109,12 +103,87 @@ final class WhisperKitEngine: ASREngine {
             for: selectedMode,
             language: selectedLanguage
         )
+        if !liveStreamingCorrectionProvider() {
+            return oneShotTranscriptionStream(
+                audioStream: audioStream,
+                whisperKit: whisperBox,
+                decodeOptions: decodeOptions
+            )
+        }
 
-        return streamingTranscriber.transcribe(audioStream: audioStream) { samples in
+        let transcriber = StreamingSegmentTranscriber(
+            config: streamingConfig(for: selectedMode, language: selectedLanguage)
+        )
+
+        return transcriber.transcribe(audioStream: audioStream) { samples in
             let results = try await whisperBox.value.transcribe(audioArray: samples, decodeOptions: decodeOptions)
             return results.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
+        }
+    }
+
+    private func oneShotTranscriptionStream(
+        audioStream: AsyncThrowingStream<[Float], Error>,
+        whisperKit: UncheckedSendableBox<WhisperKit>,
+        decodeOptions: DecodingOptions
+    ) -> AsyncThrowingStream<ASREvent, Error> {
+        AsyncThrowingStream { continuation in
+            Task.detached(priority: .userInitiated) {
+                do {
+                    var bufferedSamples: [Float] = []
+                    for try await chunk in audioStream {
+                        guard !Task.isCancelled else { break }
+                        guard !chunk.isEmpty else { continue }
+                        bufferedSamples.append(contentsOf: chunk)
+                    }
+
+                    guard !bufferedSamples.isEmpty else {
+                        continuation.yield(.final("", scope: .fullTranscript))
+                        continuation.finish()
+                        return
+                    }
+
+                    let results = try await whisperKit.value.transcribe(
+                        audioArray: bufferedSamples,
+                        decodeOptions: decodeOptions
+                    )
+                    let transcript = results
+                        .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " ")
+
+                    continuation.yield(.final(transcript, scope: .fullTranscript))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func streamingConfig(for mode: DictationMode, language: TranscriptionLanguage) -> StreamingSegmentationConfig {
+        switch mode {
+        case .accurateFast:
+            // Close segments more aggressively so the final corrected decode lands sooner
+            // after the user stops speaking.
+            return StreamingSegmentationConfig(
+                minSilenceDuration: 0.55,
+                partialResultInterval: 0.30,
+                maxSegmentDuration: 10.0,
+                minSegmentDurationBeforeSplit: 0.85,
+                emitPartialResults: true
+            )
+        case .accurate:
+            return StreamingSegmentationConfig(
+                minSilenceDuration: language == .kannada ? 0.80 : 0.65,
+                partialResultInterval: 0.35,
+                maxSegmentDuration: 12.0,
+                minSegmentDurationBeforeSplit: 1.0,
+                emitPartialResults: true
+            )
+        case .fast, .balanced:
+            return .default
         }
     }
 
@@ -137,7 +206,7 @@ final class WhisperKitEngine: ASREngine {
                 compressionRatioThreshold: 3.0,
                 logProbThreshold: -1.5,
                 noSpeechThreshold: 0.6,
-                concurrentWorkerCount: mode == .accurateFast ? 6 : 4,
+                concurrentWorkerCount: mode == .accurateFast && language != .kannada ? 8 : (mode == .accurateFast ? 6 : 4),
                 chunkingStrategy: .vad
             )
         }

@@ -48,7 +48,13 @@ final class PreferredLocalASREngine: ASREngine {
     }
 
     private func selectedEngine() -> ASREngine {
-        let descriptor = modelManager.descriptor(for: modeProvider(), language: languageProvider())
+        return standardEngine()
+    }
+
+    private func standardEngine() -> ASREngine {
+        let mode = modeProvider()
+        let language = languageProvider()
+        let descriptor = modelManager.descriptor(for: mode, language: language)
         switch descriptor.backend {
         case .parakeet:
             return parakeetEngine

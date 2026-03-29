@@ -34,7 +34,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let assistantHotkeyService = GlobalHotkeyService()
         let textInsertionService = TextInsertionService()
         let postProcessor = PostProcessor()
-        let liveTranscriptFormatter = LiveTranscriptFormatter()
         let metricsLogger = LocalMetricsLogger()
         let overlayController = ListeningOverlayController()
         let permissionService = PermissionService()
@@ -68,6 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             languageProvider: { [weak self] in
                 self?.settingsStore.transcriptionLanguage ?? .auto
+            },
+            liveStreamingCorrectionProvider: { [weak self] in
+                self?.settingsStore.appMode == .assistant
             }
         )
         let preferredLocalEngine = PreferredLocalASREngine(
@@ -100,7 +102,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyService: hotkeyService,
             textInsertionService: textInsertionService,
             postProcessor: postProcessor,
-            liveTranscriptFormatter: liveTranscriptFormatter,
             metricsLogger: metricsLogger,
             overlayController: overlayController,
             permissionService: permissionService,
@@ -118,13 +119,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             preparationKeyProvider: { [weak self] in
                 guard let self else { return "balanced:auto" }
-                return "\(self.settingsStore.dictationMode.rawValue):\(self.settingsStore.transcriptionLanguage.rawValue)"
+                return [
+                    self.settingsStore.dictationMode.rawValue,
+                    self.settingsStore.transcriptionLanguage.rawValue,
+                ].joined(separator: ":")
             },
             insertionModeProvider: { [weak self] in
-                self?.settingsStore.insertionMode ?? .accessibilityFirst
-            },
-            liveTextUpdatesProvider: { [weak self] in
-                self?.settingsStore.enableLiveTextUpdates ?? true
+                self?.settingsStore.insertionMode ?? .pasteboardFirst
             }
         )
         let assistantController = AssistantController(
@@ -149,7 +150,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             preparationKeyProvider: { [weak self] in
                 guard let self else { return "assistant:balanced:auto" }
-                return "assistant:\(self.settingsStore.dictationMode.rawValue):\(self.settingsStore.transcriptionLanguage.rawValue)"
+                return [
+                    "assistant",
+                    self.settingsStore.dictationMode.rawValue,
+                    self.settingsStore.transcriptionLanguage.rawValue,
+                ].joined(separator: ":")
             },
             responseLanguageProvider: { [weak self] in
                 self?.settingsStore.transcriptionLanguage ?? .auto
@@ -194,6 +199,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             .store(in: &cancellables)
+
+        Publishers.CombineLatest(settingsStore.$dictationMode, settingsStore.$transcriptionLanguage)
+            .dropFirst()
+            .sink { _ in
+                Task { @MainActor in
+                    if self.settingsStore.appMode == .assistant {
+                        assistantController.prewarmEngine()
+                    } else {
+                        dictationController.prewarmEngine()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
+        if settingsStore.appMode == .assistant {
+            assistantController.prewarmEngine()
+        } else {
+            dictationController.prewarmEngine()
+        }
     }
 }
 
@@ -231,9 +255,7 @@ struct SettingsView: View {
                     Text("Pasteboard fallback").tag(InsertionMode.pasteboardFirst)
                 }
 
-                Toggle("Enable live text updates", isOn: $settings.enableLiveTextUpdates)
-
-                Text("Tap the hotkey once to keep dictation running continuously. Hold the hotkey for about one second to use push-to-talk. Live text updates work best in standard text fields with Accessibility support.")
+                Text("Tap the hotkey once to keep dictation running continuously. Hold the hotkey for about one second to use push-to-talk. Dictation streams text as you speak, then applies a local final pass to refine the result.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
